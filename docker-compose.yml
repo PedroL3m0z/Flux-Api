@@ -8,7 +8,8 @@ services:
       POSTGRES_PASSWORD: flux
       POSTGRES_DB: flux
     ports:
-      - '5432:5432'
+      # host port configurable to avoid clashes with other local postgres
+      - '${POSTGRES_HOST_PORT:-5432}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -25,7 +26,8 @@ services:
     restart: unless-stopped
     command: ['redis-server', '--appendonly', 'yes']
     ports:
-      - '6379:6379'
+      # host port configurable to avoid clashes with other local redis
+      - '${REDIS_HOST_PORT:-6379}:6379'
     volumes:
       - redis_data:/data
     healthcheck:
