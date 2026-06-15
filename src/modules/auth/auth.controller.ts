@@ -29,7 +29,9 @@ export class AuthController {
 
   @Post('register')
   @Public()
-  @ApiOperation({ summary: 'Register a new user (password hashed with Argon2)' })
+  @ApiOperation({
+    summary: 'Register a new user (password hashed with Argon2)',
+  })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
@@ -39,7 +41,9 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(LocalAuthGuard)
   @ApiBody({ type: LoginDto })
-  @ApiOperation({ summary: 'Login with username/email + password, returns JWT' })
+  @ApiOperation({
+    summary: 'Login with username/email + password, returns JWT',
+  })
   login(@CurrentUser() user: SafeUser) {
     return this.authService.login(user);
   }

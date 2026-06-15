@@ -17,7 +17,8 @@ async function bootstrap() {
   // --- CORS ---
   const corsOrigin = config.get<string>('CORS_ORIGIN', '*');
   app.enableCors({
-    origin: corsOrigin === '*' ? true : corsOrigin.split(',').map((o) => o.trim()),
+    origin:
+      corsOrigin === '*' ? true : corsOrigin.split(',').map((o) => o.trim()),
     credentials: true,
   });
 
@@ -36,7 +37,10 @@ async function bootstrap() {
     .setDescription('Flux API — HTTP gateway for Telegram')
     .setVersion('1.0')
     .addBearerAuth()
-    .addApiKey({ type: 'apiKey', name: API_KEY_HEADER, in: 'header' }, 'api-key')
+    .addApiKey(
+      { type: 'apiKey', name: API_KEY_HEADER, in: 'header' },
+      'api-key',
+    )
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
 
