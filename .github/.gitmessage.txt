@@ -1,0 +1,21 @@
+# <type>(<scope>): <subject>   ── max 50 chars, imperative, no trailing period
+#
+# <body>   ── what & why (not how), wrap at 72 chars
+#
+# <footer>  ── BREAKING CHANGE: ... | Closes #123
+#
+# ── Conventional Commits ─────────────────────────────────────────────
+# type:  feat     new feature
+#        fix      bug fix
+#        docs     documentation only
+#        style    formatting, no code change
+#        refactor neither fix nor feature
+#        perf     performance
+#        test     adding/fixing tests
+#        build    build system or deps
+#        ci       CI config
+#        chore    other (tooling, deps)
+#        revert   reverts a previous commit
+# scope: auth | prisma | redis | health | docs | docker | config ...
+# Example: feat(auth): add API key authentication strategy
+# ─────────────────────────────────────────────────────────────────────

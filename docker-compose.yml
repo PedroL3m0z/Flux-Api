@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: flux-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: flux
+      POSTGRES_PASSWORD: flux
+      POSTGRES_DB: flux
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U flux -d flux']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - flux
+
+  redis:
+    image: redis:7-alpine
+    container_name: flux-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - flux
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flux-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Override hosts so the app reaches the service containers, not localhost
+      DATABASE_URL: postgresql://flux:flux@postgres:5432/flux?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - flux
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  flux:
+    driver: bridge

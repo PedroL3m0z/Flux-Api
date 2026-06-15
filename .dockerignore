@@ -1,0 +1,15 @@
+node_modules
+dist
+coverage
+.git
+.gitignore
+*.md
+.env
+.env.*
+!.env.example
+src/core/prisma/generated
+Dockerfile
+.dockerignore
+docker-compose.yml
+npm-debug.log
+yarn-error.log

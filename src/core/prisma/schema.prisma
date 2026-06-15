@@ -1,0 +1,23 @@
+// Prisma 7 — new TypeScript client generator + driver adapters.
+// Docs: https://www.prisma.io/docs/guides/frameworks/nestjs
+generator client {
+  provider     = "prisma-client"
+  output       = "./generated"
+  runtime      = "nodejs"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}

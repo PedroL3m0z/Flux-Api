@@ -1,0 +1,58 @@
+name: 🐛 Bug Report
+description: Report a reproducible bug or unexpected behavior.
+title: '[Bug]: '
+labels: ['bug', 'triage']
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to file a bug report.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Steps, request payloads, or a minimal repro.
+      placeholder: |
+        1. Call `POST /auth/login` with ...
+        2. See error ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste logs/stack traces. Redact secrets.
+      render: shell
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Auth (JWT / API Key / local)
+        - Prisma / PostgreSQL
+        - Redis
+        - Healthcheck
+        - Docs (Swagger / Scalar)
+        - Docker / infra
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Node version, OS, Docker version, deployment target.
+    validations:
+      required: true
