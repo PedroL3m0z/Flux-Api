@@ -4,16 +4,20 @@ services:
     container_name: flux-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: flux
-      POSTGRES_PASSWORD: flux
-      POSTGRES_DB: flux
+      POSTGRES_USER: ${POSTGRES_USER:-flux}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flux}
+      POSTGRES_DB: ${POSTGRES_DB:-flux}
     ports:
       # host port configurable to avoid clashes with other local postgres
       - '${POSTGRES_HOST_PORT:-5432}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U flux -d flux']
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-flux} -d ${POSTGRES_DB:-flux}',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -48,7 +52,7 @@ services:
       - .env
     environment:
       # Override hosts so the app reaches the service containers, not localhost
-      DATABASE_URL: postgresql://flux:flux@postgres:5432/flux?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-flux}:${POSTGRES_PASSWORD:-flux}@postgres:5432/${POSTGRES_DB:-flux}?schema=public
       REDIS_HOST: redis
       REDIS_PORT: 6379
     ports:
