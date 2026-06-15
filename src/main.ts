@@ -13,12 +13,12 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   // --- Security headers ---
-  // Strict CSP on the API; relaxed on the docs UIs (Scalar/Swagger load
-  // their bundle from a CDN plus an inline bootstrap script).
+  // Strict CSP on the API; relaxed on the Scalar docs UI (it loads its
+  // bundle from a CDN plus an inline bootstrap script).
   const helmetStrict = helmet();
   const helmetDocs = helmet({ contentSecurityPolicy: false });
   app.use((req: Request, res: Response, next: NextFunction) =>
-    req.path.startsWith('/docs') || req.path.startsWith('/swagger')
+    req.path.startsWith('/docs')
       ? helmetDocs(req, res, next)
       : helmetStrict(req, res, next),
   );
@@ -52,11 +52,6 @@ async function bootstrap() {
     )
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-
-  // Classic Swagger UI at /swagger + raw OpenAPI JSON at /openapi.json (tooling).
-  SwaggerModule.setup('swagger', app, document, {
-    jsonDocumentUrl: 'openapi.json',
-  });
 
   // --- Scalar API Reference UI at /docs (primary docs) ---
   app.use(
