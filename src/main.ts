@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { apiReference } from '@scalar/nestjs-api-reference';
+import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { API_KEY_HEADER } from './modules/auth/strategies/api-key.strategy';
@@ -12,7 +13,15 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   // --- Security headers ---
-  app.use(helmet());
+  // Strict CSP on the API; relaxed on the docs UIs (Scalar/Swagger load
+  // their bundle from a CDN plus an inline bootstrap script).
+  const helmetStrict = helmet();
+  const helmetDocs = helmet({ contentSecurityPolicy: false });
+  app.use((req: Request, res: Response, next: NextFunction) =>
+    req.path.startsWith('/docs') || req.path.startsWith('/swagger')
+      ? helmetDocs(req, res, next)
+      : helmetStrict(req, res, next),
+  );
 
   // --- CORS ---
   const corsOrigin = config.get<string>('CORS_ORIGIN', '*');
