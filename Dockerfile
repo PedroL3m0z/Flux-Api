@@ -6,13 +6,18 @@ WORKDIR /app
 # argon2 is a native module; build toolchain needed during install
 RUN apk add --no-cache python3 make g++
 
+# node:26-alpine ships neither yarn nor corepack; install yarn classic
+RUN npm install -g yarn
+
 COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile
 
 COPY . .
 
-# Generate Prisma client (schema lives in src/prisma) + compile TypeScript
-RUN yarn prisma generate
+# Generate Prisma client (schema lives in src/prisma) + compile TypeScript.
+# prisma.config.ts resolves DATABASE_URL eagerly; generate needs no real DB,
+# so a build-time placeholder is enough.
+RUN DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder" yarn prisma generate
 RUN yarn build
 
 # ---- Production stage ----
@@ -23,6 +28,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 RUN apk add --no-cache python3 make g++
+
+# node:26-alpine ships neither yarn nor corepack; install yarn classic
+RUN npm install -g yarn
 
 COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile --production && yarn cache clean
