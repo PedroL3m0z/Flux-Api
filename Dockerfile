@@ -42,10 +42,14 @@ RUN yarn install --frozen-lockfile --production && yarn cache clean
 COPY --from=builder /app/dist ./dist
 # Built Vue client served at /dashboard via @nestjs/serve-static.
 COPY --from=builder /app/client/dist ./client/dist
-# Schema + prisma config kept for `prisma migrate deploy` at release time.
+# Schema + migrations + prisma config for `prisma migrate deploy` at startup.
 COPY --from=builder /app/src/core/prisma ./src/core/prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 
+# Entrypoint runs migrations, then starts the app.
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
+
 EXPOSE 3000
 
-CMD ["node", "dist/main.js"]
+CMD ["./docker-entrypoint.sh"]

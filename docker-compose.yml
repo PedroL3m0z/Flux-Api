@@ -51,6 +51,11 @@ services:
     env_file:
       - .env
     environment:
+      # Run in production mode (overrides any NODE_ENV from .env).
+      NODE_ENV: production
+      # Explicit CORS origin: production refuses to boot with the "*" wildcard.
+      # The dashboard is same-origin; set your real frontend origin(s) here.
+      CORS_ORIGIN: http://localhost:3000
       # Override hosts so the app reaches the service containers, not localhost
       DATABASE_URL: postgresql://${POSTGRES_USER:-flux}:${POSTGRES_PASSWORD:-flux}@postgres:5432/${POSTGRES_DB:-flux}?schema=public
       REDIS_HOST: redis
