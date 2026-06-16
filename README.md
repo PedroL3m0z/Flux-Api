@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./docs/assets/logo.png" alt="Flux API Gateway" width="360" />
+</p>
+
 # Flux API
 
 [![CI](https://github.com/PedroL3m0z/Flux-Api/actions/workflows/ci.yml/badge.svg)](https://github.com/PedroL3m0z/Flux-Api/actions/workflows/ci.yml)

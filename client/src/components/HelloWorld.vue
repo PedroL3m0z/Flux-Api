@@ -1,22 +1,21 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import viteLogo from '../assets/vite.svg'
-import heroImg from '../assets/hero.png'
 import vueLogo from '../assets/vue.svg'
 
+// Served from client/public; BASE_URL resolves the /dashboard/ prefix.
+const logoUrl = `${import.meta.env.BASE_URL}logo.png`
 const count = ref(0)
 </script>
 
 <template>
   <section id="center">
     <div class="hero">
-      <img :src="heroImg" class="base" width="170" height="179" alt="" />
-      <img :src="vueLogo" class="framework" alt="Vue logo" />
-      <img :src="viteLogo" class="vite" alt="Vite logo" />
+      <img :src="logoUrl" class="base" alt="Flux API Gateway" width="320" />
     </div>
     <div>
-      <h1>Get started</h1>
-      <p>Edit <code>src/App.vue</code> and save to test <code>HMR</code></p>
+      <h1>Flux API Gateway</h1>
+      <p>HTTP gateway for Telegram</p>
     </div>
     <button type="button" class="counter" @click="count++">
       Count is {{ count }}
