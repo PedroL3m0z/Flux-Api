@@ -1,10 +1,26 @@
 {
   "name": "flux-api",
-  "version": "0.0.1",
-  "description": "",
-  "author": "",
-  "private": true,
+  "version": "0.1.0",
+  "description": "HTTP gateway for Telegram built with NestJS 11, Prisma 7 (PostgreSQL) and Redis.",
+  "author": "Pedro Lemos",
   "license": "MIT",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PedroL3m0z/Flux-Api.git"
+  },
+  "bugs": {
+    "url": "https://github.com/PedroL3m0z/Flux-Api/issues"
+  },
+  "homepage": "https://github.com/PedroL3m0z/Flux-Api#readme",
+  "keywords": [
+    "nestjs",
+    "telegram",
+    "api-gateway",
+    "prisma",
+    "redis",
+    "typescript"
+  ],
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",

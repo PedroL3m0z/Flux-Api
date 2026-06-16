@@ -1,8 +1,13 @@
 # Flux API
 
+[![CI](https://github.com/PedroL3m0z/Flux-Api/actions/workflows/ci.yml/badge.svg)](https://github.com/PedroL3m0z/Flux-Api/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![NestJS](https://img.shields.io/badge/NestJS-11-e0234e.svg)](https://nestjs.com)
+[![Prisma](https://img.shields.io/badge/Prisma-7-2d3748.svg)](https://www.prisma.io)
+
 Gateway HTTP para Telegram em NestJS 11 com Prisma 7 (PostgreSQL), Redis,
 healthchecks (Terminus), segurança (Helmet, CORS, Rate Limiting, API Key,
-JWT/usuário+senha, Argon2) e documentação via Swagger + Scalar.
+JWT/usuário+senha, Argon2) e documentação OpenAPI via Scalar.
 
 ## Stack
 
@@ -15,7 +20,7 @@ JWT/usuário+senha, Argon2) e documentação via Swagger + Scalar.
 | Headers        | `helmet`                                                |
 | Auth           | `@nestjs/passport` (local, jwt, api-key) + `@nestjs/jwt`|
 | Hash de senha  | `argon2` (argon2id)                                     |
-| Docs           | `@nestjs/swagger` + `@scalar/nestjs-api-reference`      |
+| Docs           | OpenAPI (`@nestjs/swagger`) + UI `@scalar/nestjs-api-reference` |
 
 ## Setup
 
@@ -49,9 +54,7 @@ yarn start:dev
 | `POST /auth/login`        | user/senha  | Retorna JWT                        |
 | `GET /auth/me`            | Bearer JWT  | Usuário atual                      |
 | `GET /auth/api-key-check` | `x-api-key` | Exemplo protegido por API key      |
-| `GET /docs`               | pública     | Scalar API Reference               |
-| `GET /swagger`            | pública     | Swagger UI                         |
-| `GET /openapi.json`       | pública     | OpenAPI JSON                       |
+| `GET /docs`               | pública     | Scalar API Reference (OpenAPI)     |
 
 > Todas as rotas são protegidas por JWT global por padrão; use `@Public()`
 > para liberar e `@SkipThrottle()` para ignorar o rate limit.
@@ -68,4 +71,15 @@ yarn start:dev
 ```bash
 yarn test       # unit
 yarn test:e2e   # e2e
+yarn test:cov   # cobertura
 ```
+
+## Contribuindo
+
+Veja [CONTRIBUTING.md](./CONTRIBUTING.md) e o
+[CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md). Vulnerabilidades:
+[SECURITY.md](./SECURITY.md).
+
+## Licença
+
+[MIT](./LICENSE) © Pedro Lemos
