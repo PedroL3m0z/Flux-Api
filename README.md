@@ -78,7 +78,8 @@ yarn test:cov   # cobertura
 
 Veja [CONTRIBUTING.md](./CONTRIBUTING.md) e o
 [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md). Vulnerabilidades:
-[SECURITY.md](./SECURITY.md).
+[SECURITY.md](./SECURITY.md). Manutenção/releases:
+[docs/MAINTAINING.md](./docs/MAINTAINING.md).
 
 ## Licença
 
