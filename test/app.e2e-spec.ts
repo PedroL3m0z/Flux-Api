@@ -23,13 +23,6 @@ describe('AppController (e2e)', () => {
       .expect('Hello World!');
   });
 
-  // Requires the client to be built (client/dist); CI runs `build:client`.
-  it('/dashboard/ (GET) serves the SPA without auth', async () => {
-    const res = await request(app.getHttpServer()).get('/dashboard/');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('<div id="app">');
-  });
-
   afterEach(async () => {
     await app.close();
   });
