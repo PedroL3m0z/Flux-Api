@@ -6,6 +6,7 @@ import { apiReference } from '@scalar/nestjs-api-reference';
 import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { resolveCorsOrigin } from './config/cors';
 import { API_KEY_HEADER } from './modules/auth/strategies/api-key.strategy';
 
 async function bootstrap() {
@@ -25,9 +26,9 @@ async function bootstrap() {
 
   // --- CORS ---
   const corsOrigin = config.get<string>('CORS_ORIGIN', '*');
+  const nodeEnv = config.get<string>('NODE_ENV');
   app.enableCors({
-    origin:
-      corsOrigin === '*' ? true : corsOrigin.split(',').map((o) => o.trim()),
+    origin: resolveCorsOrigin(nodeEnv, corsOrigin),
     credentials: true,
   });
 
