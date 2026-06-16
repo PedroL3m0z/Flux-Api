@@ -42,6 +42,16 @@ describe('UsersService', () => {
     });
   });
 
+  it('findByEmailOrUsername queries email OR username separately', async () => {
+    prisma.user.findFirst.mockResolvedValue(null);
+
+    await service.findByEmailOrUsername('a@b.dev', 'flux_user');
+
+    expect(prisma.user.findFirst).toHaveBeenCalledWith({
+      where: { OR: [{ email: 'a@b.dev' }, { username: 'flux_user' }] },
+    });
+  });
+
   it('findById queries by unique id', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
 
