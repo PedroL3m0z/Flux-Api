@@ -15,6 +15,16 @@ export interface SafeUser {
   username: string;
 }
 
+/** True for a Prisma unique-constraint violation (error code P2002). */
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === 'P2002'
+  );
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -24,17 +34,29 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto): Promise<SafeUser> {
-    const existing = await this.usersService.findByUsernameOrEmail(dto.email);
+    const existing = await this.usersService.findByEmailOrUsername(
+      dto.email,
+      dto.username,
+    );
     if (existing) {
       throw new ConflictException('Email or username already in use');
     }
     const password = await this.hashing.hash(dto.password);
-    const user = await this.usersService.create({
-      email: dto.email,
-      username: dto.username,
-      password,
-    });
-    return { id: user.id, email: user.email, username: user.username };
+    try {
+      const user = await this.usersService.create({
+        email: dto.email,
+        username: dto.username,
+        password,
+      });
+      return { id: user.id, email: user.email, username: user.username };
+    } catch (error) {
+      // Unique-constraint race: another request created the same email/username
+      // between the check above and this insert. Prisma reports it as P2002.
+      if (isUniqueConstraintError(error)) {
+        throw new ConflictException('Email or username already in use');
+      }
+      throw error;
+    }
   }
 
   /** Used by LocalStrategy. Returns the safe user or null. */

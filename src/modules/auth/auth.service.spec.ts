@@ -7,7 +7,10 @@ import { AuthService } from './auth.service';
 describe('AuthService', () => {
   let service: AuthService;
   let users: jest.Mocked<
-    Pick<UsersService, 'findByUsernameOrEmail' | 'create'>
+    Pick<
+      UsersService,
+      'findByUsernameOrEmail' | 'findByEmailOrUsername' | 'create'
+    >
   >;
   let hashing: jest.Mocked<Pick<HashingService, 'hash' | 'verify'>>;
   let jwt: jest.Mocked<Pick<JwtService, 'signAsync'>>;
@@ -23,6 +26,7 @@ describe('AuthService', () => {
   beforeEach(() => {
     users = {
       findByUsernameOrEmail: jest.fn(),
+      findByEmailOrUsername: jest.fn(),
       create: jest.fn(),
     };
     hashing = { hash: jest.fn(), verify: jest.fn() };
@@ -42,12 +46,16 @@ describe('AuthService', () => {
     };
 
     it('hashes the password and returns a safe user (no password)', async () => {
-      users.findByUsernameOrEmail.mockResolvedValue(null);
+      users.findByEmailOrUsername.mockResolvedValue(null);
       hashing.hash.mockResolvedValue('hashed');
       users.create.mockResolvedValue(dbUser as never);
 
       const result = await service.register(dto);
 
+      expect(users.findByEmailOrUsername).toHaveBeenCalledWith(
+        'user@flux.dev',
+        'flux_user',
+      );
       expect(hashing.hash).toHaveBeenCalledWith('S3cureP@ss');
       expect(users.create).toHaveBeenCalledWith({
         email: 'user@flux.dev',
@@ -58,14 +66,32 @@ describe('AuthService', () => {
       expect(result).not.toHaveProperty('password');
     });
 
-    it('throws ConflictException when the user already exists', async () => {
-      users.findByUsernameOrEmail.mockResolvedValue(dbUser as never);
+    it('throws ConflictException when email or username is already taken', async () => {
+      users.findByEmailOrUsername.mockResolvedValue(dbUser as never);
 
       await expect(service.register(dto)).rejects.toBeInstanceOf(
         ConflictException,
       );
       expect(users.create).not.toHaveBeenCalled();
       expect(hashing.hash).not.toHaveBeenCalled();
+    });
+
+    it('maps a Prisma P2002 race to ConflictException (not 500)', async () => {
+      users.findByEmailOrUsername.mockResolvedValue(null);
+      hashing.hash.mockResolvedValue('hashed');
+      users.create.mockRejectedValue({ code: 'P2002' });
+
+      await expect(service.register(dto)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+    });
+
+    it('rethrows non-unique-constraint errors from create', async () => {
+      users.findByEmailOrUsername.mockResolvedValue(null);
+      hashing.hash.mockResolvedValue('hashed');
+      users.create.mockRejectedValue(new Error('db down'));
+
+      await expect(service.register(dto)).rejects.toThrow('db down');
     });
   });
 
