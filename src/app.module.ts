@@ -1,15 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
-import { ServeStaticModule } from '@nestjs/serve-static';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
-import { dashboardStaticOptions } from './config/serve-static.options';
 import { PrismaModule } from './core/prisma/prisma.module';
 import { RedisModule } from './core/redis/redis.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { HealthModule } from './modules/health/health.module';
 import { UsersModule } from './modules/users/users.module';
@@ -32,12 +31,12 @@ import { UsersModule } from './modules/users/users.module';
         ],
       }),
     }),
-    ServeStaticModule.forRoot(dashboardStaticOptions),
     PrismaModule,
     RedisModule,
     HealthModule,
     UsersModule,
     AuthModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [

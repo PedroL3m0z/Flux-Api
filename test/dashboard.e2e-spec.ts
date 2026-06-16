@@ -1,25 +1,19 @@
-import { INestApplication, Module } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { ServeStaticModule } from '@nestjs/serve-static';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { dashboardStaticOptions } from './../src/config/serve-static.options';
+import { DashboardModule } from './../src/modules/dashboard/dashboard.module';
 
 // Booted via NestFactory (not Test.createTestingModule) on purpose:
 // @nestjs/serve-static picks its loader from the HTTP adapter at DI time, and
 // the TestingModule resolves providers before the adapter exists (NoopLoader).
 // NestFactory mirrors the production boot order, so the ExpressLoader serves.
-// Uses the same dashboardStaticOptions as AppModule. No database needed.
-@Module({
-  imports: [ServeStaticModule.forRoot(dashboardStaticOptions)],
-})
-class DashboardTestModule {}
-
+// Boots the real DashboardModule. No database needed.
 describe('Dashboard SPA (e2e)', () => {
   let app: INestApplication<App>;
 
   beforeAll(async () => {
-    app = await NestFactory.create(DashboardTestModule, { logger: false });
+    app = await NestFactory.create(DashboardModule, { logger: false });
     await app.init();
   });
 
