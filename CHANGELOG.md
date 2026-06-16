@@ -5,6 +5,14 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3](https://github.com/PedroL3m0z/Flux-Api/compare/v0.1.2...v0.1.3) (2026-06-16)
+
+
+### Features
+
+* **client:** serve Vue dashboard via serve-static at /dashboard ([#17](https://github.com/PedroL3m0z/Flux-Api/issues/17)) ([7310b73](https://github.com/PedroL3m0z/Flux-Api/commit/7310b73698b2acc6981005e99a4f599f1ac2353c))
+* **config:** validate environment variables at startup ([3fa4dca](https://github.com/PedroL3m0z/Flux-Api/commit/3fa4dca5af811e3aaaa50b7c85e7768dbca5e061))
+
 ## [0.1.2](https://github.com/PedroL3m0z/Flux-Api/compare/v0.1.1...v0.1.2) (2026-06-16)
 
 
