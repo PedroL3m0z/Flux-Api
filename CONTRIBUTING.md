@@ -5,8 +5,8 @@ Thanks for your interest in contributing! 🎉
 ## Getting started
 
 ```bash
-git clone https://github.com/PedroL3m0z/flux-api.git
-cd flux-api
+git clone https://github.com/PedroL3m0z/Flux-Api.git
+cd Flux-Api
 cp .env.example .env
 yarn install
 yarn prisma:generate

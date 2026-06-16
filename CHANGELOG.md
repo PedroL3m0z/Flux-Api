@@ -21,30 +21,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **lint:** resolve eslint errors blocking CI ([0224a53](https://github.com/PedroL3m0z/Flux-Api/commit/0224a535cab4cd3512d95cb69283dad003b3cb09))
 * **test:** make jest resolve Prisma 7 client and run e2e ([56b7150](https://github.com/PedroL3m0z/Flux-Api/commit/56b71504a84a5b7a13915f1c44a5b36d465831a6))
 
-## [Unreleased]
+### Miscellaneous
 
-### Changed
+* Relicensed from MIT to Apache-2.0; added a `NOTICE` file.
 
-- License changed from MIT to Apache License 2.0; added a `NOTICE` file.
+## [0.1.0](https://github.com/PedroL3m0z/Flux-Api/releases/tag/v0.1.0) (2026-06-16)
 
-- Dropped the classic Swagger UI; Scalar API Reference is now the only docs UI,
-  served at `/docs`.
-- Docker image builds on `node:26-alpine`; Postgres credentials and host ports
-  are configurable via `.env`.
-- Relaxed Helmet CSP so the Scalar docs UI loads correctly.
+Initial release.
 
-## [0.1.0] - 2026-06-16
+### Features
 
-### Added
-
-- Initial public release.
-- NestJS 11 HTTP gateway with Prisma 7 (PostgreSQL) and Redis (ioredis).
-- Auth: local (user/password, Argon2id), JWT, and API key strategies.
-- Security: Helmet, CORS, rate limiting (`@nestjs/throttler`).
-- Healthchecks via `@nestjs/terminus` (postgres, redis, memory).
-- OpenAPI docs served through Scalar at `/docs`.
-- Docker Compose stack (postgres, redis, api).
-- CI pipeline: lint, build, unit and e2e tests.
-
-[Unreleased]: https://github.com/PedroL3m0z/Flux-Api/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/PedroL3m0z/Flux-Api/releases/tag/v0.1.0
+* NestJS 11 HTTP gateway with Prisma 7 (PostgreSQL) and Redis (ioredis).
+* Auth: local (username/email + password, Argon2id), JWT, and API key strategies.
+* Security hardening: Helmet, CORS, and rate limiting (`@nestjs/throttler`).
+* Healthchecks for postgres, redis, and memory via `@nestjs/terminus`.
+* OpenAPI documentation served through Scalar at `/docs`.
+* Docker Compose stack (postgres, redis, api) and CI (lint, build, unit, e2e).
