@@ -42,7 +42,7 @@ jobs:
       DATABASE_URL: postgresql://flux:flux@localhost:5432/flux?schema=public
       REDIS_HOST: localhost
       REDIS_PORT: 6379
-      JWT_SECRET: ci-secret
+      JWT_SECRET: ci-secret-ci-secret-0123456789
       API_KEY: ci-api-key
 
     steps:
