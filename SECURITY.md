@@ -4,7 +4,7 @@
 
 **Do not open a public issue for security vulnerabilities.**
 
-Report privately via [GitHub Security Advisories](https://github.com/PedroL3m0z/flux-api/security/advisories/new),
+Report privately via [GitHub Security Advisories](https://github.com/PedroL3m0z/Flux-Api/security/advisories/new),
 or email the maintainer at pedroantonio5735@gmail.com.
 
 Please include:
