@@ -5,6 +5,9 @@
   "author": "Pedro Lemos",
   "license": "Apache-2.0",
   "private": true,
+  "workspaces": [
+    "client"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/PedroL3m0z/Flux-Api.git"
@@ -23,7 +26,7 @@
   ],
   "scripts": {
     "build": "nest build",
-    "build:client": "npm --prefix client ci && npm --prefix client run build",
+    "build:client": "yarn workspace client build",
     "build:all": "yarn build:client && yarn build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",

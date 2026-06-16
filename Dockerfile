@@ -9,7 +9,9 @@ RUN apk add --no-cache python3 make g++
 # node:26-alpine ships neither yarn nor corepack; install yarn classic
 RUN npm install -g yarn
 
+# Workspaces: root + client manifests so a single install resolves both.
 COPY package.json yarn.lock ./
+COPY client/package.json ./client/
 RUN yarn install --frozen-lockfile
 
 COPY . .
@@ -21,7 +23,7 @@ RUN DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholde
 RUN yarn build
 
 # Build the Vue client (served by the backend under /dashboard).
-RUN npm --prefix client ci && npm --prefix client run build
+RUN yarn build:client
 
 # ---- Production stage ----
 FROM node:26-alpine AS production
@@ -36,6 +38,7 @@ RUN apk add --no-cache python3 make g++
 RUN npm install -g yarn
 
 COPY package.json yarn.lock ./
+COPY client/package.json ./client/
 RUN yarn install --frozen-lockfile --production && yarn cache clean
 
 # Compiled app (includes the generated Prisma client under dist/prisma/generated).
