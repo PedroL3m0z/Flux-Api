@@ -1,7 +1,7 @@
 # Flux API
 
 [![CI](https://github.com/PedroL3m0z/Flux-Api/actions/workflows/ci.yml/badge.svg)](https://github.com/PedroL3m0z/Flux-Api/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 [![NestJS](https://img.shields.io/badge/NestJS-11-e0234e.svg)](https://nestjs.com)
 [![Prisma](https://img.shields.io/badge/Prisma-7-2d3748.svg)](https://www.prisma.io)
 
@@ -82,4 +82,4 @@ Veja [CONTRIBUTING.md](./CONTRIBUTING.md) e o
 
 ## Licença
 
-[MIT](./LICENSE) © Pedro Lemos
+[Apache License 2.0](./LICENSE) © Pedro Lemos

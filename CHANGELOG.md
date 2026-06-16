@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- License changed from MIT to Apache License 2.0; added a `NOTICE` file.
+
 - Dropped the classic Swagger UI; Scalar API Reference is now the only docs UI,
   served at `/docs`.
 - Docker image builds on `node:26-alpine`; Postgres credentials and host ports
