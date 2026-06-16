@@ -1,7 +1,7 @@
 # Maintainer Guide
 
 Operational runbook for maintainers of Flux API. For contributor workflow
-(branches, commit style, quality gates) see [CONTRIBUTING.md](../CONTRIBUTING.md).
+(branches, commit style, quality gates) see [CONTRIBUTING.md](../.github/CONTRIBUTING.md).
 
 All commands assume the [GitHub CLI](https://cli.github.com/) (`gh`) is
 installed and authenticated (`gh auth status`).
