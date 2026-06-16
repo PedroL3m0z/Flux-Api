@@ -55,9 +55,26 @@ yarn start:dev
 | `GET /auth/me`            | Bearer JWT  | Usuário atual                      |
 | `GET /auth/api-key-check` | `x-api-key` | Exemplo protegido por API key      |
 | `GET /docs`               | pública     | Scalar API Reference (OpenAPI)     |
+| `GET /dashboard`          | pública     | SPA Vue (frontend) servida estática |
 
 > Todas as rotas são protegidas por JWT global por padrão; use `@Public()`
 > para liberar e `@SkipThrottle()` para ignorar o rate limit.
+
+## Dashboard (frontend Vue)
+
+O client Vue + TypeScript fica em `client/` e é servido pelo backend via
+`@nestjs/serve-static` em `/dashboard` (Vite com `base: '/dashboard/'`).
+
+```bash
+# build do client + backend (gera client/dist e dist)
+yarn build:all
+
+# dev do frontend com hot-reload (proxy de /auth e /health pro backend:3000)
+cd client && npm run dev
+```
+
+Em produção o `Dockerfile` builda o client e copia `client/dist` para a imagem;
+a API serve a SPA em `/dashboard`.
 
 ## Prisma
 

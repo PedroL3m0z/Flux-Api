@@ -20,6 +20,9 @@ COPY . .
 RUN DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder" yarn prisma generate
 RUN yarn build
 
+# Build the Vue client (served by the backend under /dashboard).
+RUN npm --prefix client ci && npm --prefix client run build
+
 # ---- Production stage ----
 FROM node:26-alpine AS production
 
@@ -37,6 +40,8 @@ RUN yarn install --frozen-lockfile --production && yarn cache clean
 
 # Compiled app (includes the generated Prisma client under dist/prisma/generated).
 COPY --from=builder /app/dist ./dist
+# Built Vue client served at /dashboard via @nestjs/serve-static.
+COPY --from=builder /app/client/dist ./client/dist
 # Schema + prisma config kept for `prisma migrate deploy` at release time.
 COPY --from=builder /app/src/core/prisma ./src/core/prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts

@@ -65,6 +65,9 @@ jobs:
       - name: Build
         run: yarn build
 
+      - name: Build client
+        run: yarn build:client
+
       - name: Sync database schema
         run: yarn prisma db push --schema=src/core/prisma/schema.prisma
 

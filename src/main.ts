@@ -14,13 +14,14 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   // --- Security headers ---
-  // Strict CSP on the API; relaxed on the Scalar docs UI (it loads its
-  // bundle from a CDN plus an inline bootstrap script).
+  // Strict CSP on the API. Relaxed CSP on the Scalar docs UI (CDN bundle +
+  // inline bootstrap) and the /dashboard SPA (Vite-emitted assets). Other
+  // helmet protections stay on everywhere.
   const helmetStrict = helmet();
-  const helmetDocs = helmet({ contentSecurityPolicy: false });
+  const helmetRelaxedCsp = helmet({ contentSecurityPolicy: false });
   app.use((req: Request, res: Response, next: NextFunction) =>
-    req.path.startsWith('/docs')
-      ? helmetDocs(req, res, next)
+    req.path.startsWith('/docs') || req.path.startsWith('/dashboard')
+      ? helmetRelaxedCsp(req, res, next)
       : helmetStrict(req, res, next),
   );
 
