@@ -20,6 +20,7 @@ const auth = useAuthStore()
 const router = useRouter()
 const { t } = useI18n()
 const iconUrl = `${import.meta.env.BASE_URL}icon.png`
+const version = __APP_VERSION__
 
 const collapsed = ref(localStorage.getItem('sidebar-collapsed') === 'true')
 function toggle() {
@@ -29,8 +30,8 @@ function toggle() {
 
 const nav = [
   { name: 'overview', key: 'nav.overview', icon: LayoutDashboard },
-  { name: 'users', key: 'nav.users', icon: Users },
   { name: 'instances', key: 'nav.instances', icon: Server },
+  { name: 'users', key: 'nav.users', icon: Users },
   { name: 'api-key', key: 'nav.apiKey', icon: KeyRound },
 ]
 
@@ -69,8 +70,14 @@ async function onLogout() {
         </RouterLink>
       </nav>
 
-      <div class="border-t p-2">
+      <div class="space-y-1 border-t p-2">
         <HealthBadge :compact="collapsed" />
+        <p
+          class="text-center text-[11px] text-muted-foreground/70"
+          :title="`Flux v${version}`"
+        >
+          {{ collapsed ? version : `v${version}` }}
+        </p>
       </div>
     </aside>
 
