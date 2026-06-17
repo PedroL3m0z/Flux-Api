@@ -9,12 +9,12 @@ export const ACCESS_TOKEN_COOKIE = 'access_token';
  */
 export function accessTokenCookieOptions(
   maxAgeMs: number,
-  isProd: boolean,
+  secure: boolean,
 ): CookieOptions {
   return {
     httpOnly: true,
     sameSite: 'lax',
-    secure: isProd,
+    secure,
     path: '/',
     maxAge: maxAgeMs,
   };

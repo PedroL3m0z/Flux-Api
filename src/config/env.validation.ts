@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { plainToInstance, Type } from 'class-transformer';
 import {
   IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -38,6 +39,11 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   CORS_ORIGIN?: string;
+
+  // "true" to mark the auth cookie Secure (set this when serving behind HTTPS).
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  COOKIE_SECURE?: string;
 
   @IsString()
   @IsNotEmpty()

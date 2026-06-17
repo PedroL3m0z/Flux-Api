@@ -42,11 +42,14 @@ export class AuthController {
     const maxAge = expiresInToMs(
       this.config.get<string>('JWT_EXPIRES_IN', '3600s'),
     );
-    const isProd = this.config.get<string>('NODE_ENV') === 'production';
+    // `secure` requires HTTPS — a Secure cookie is never sent over plain HTTP.
+    // Driven by COOKIE_SECURE (set it true when serving behind TLS), not by
+    // NODE_ENV, so http deployments and local docker still work.
+    const secure = this.config.get<string>('COOKIE_SECURE') === 'true';
     res.cookie(
       ACCESS_TOKEN_COOKIE,
       token,
-      accessTokenCookieOptions(maxAge, isProd),
+      accessTokenCookieOptions(maxAge, secure),
     );
   }
 
