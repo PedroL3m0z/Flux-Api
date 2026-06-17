@@ -20,6 +20,13 @@ export interface HealthResult {
   info?: Record<string, { status: string }>
 }
 
+export interface UserListItem {
+  id: string
+  email: string
+  username: string
+  createdAt: string
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
     credentials: 'include',
@@ -53,6 +60,7 @@ export const api = {
     }),
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   me: () => request<SafeUser>('/auth/me'),
+  users: () => request<UserListItem[]>('/users'),
   apiKeyCheck: (key: string) =>
     request<{ ok: boolean; via: string }>('/auth/api-key-check', {
       headers: { 'x-api-key': key },

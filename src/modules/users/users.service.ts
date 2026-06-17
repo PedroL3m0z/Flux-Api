@@ -36,4 +36,12 @@ export class UsersService {
   async findById(id: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { id } });
   }
+
+  /** All users, newest first, without the password field. */
+  async findAll() {
+    return this.prisma.user.findMany({
+      select: { id: true, email: true, username: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }
