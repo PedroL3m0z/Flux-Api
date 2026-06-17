@@ -2,6 +2,8 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import { api } from '@/lib/api'
 
+defineProps<{ compact?: boolean }>()
+
 type State = 'loading' | 'ok' | 'down'
 const state = ref<State>('loading')
 let timer: number | undefined
@@ -33,9 +35,11 @@ const dot = {
 
 <template>
   <div
-    class="flex items-center gap-2 rounded-md border px-3 py-2 text-xs text-muted-foreground"
+    class="flex items-center gap-2 rounded-md border text-xs text-muted-foreground"
+    :class="compact ? 'justify-center p-2' : 'px-3 py-2'"
+    :title="compact ? label[state] : undefined"
   >
-    <span class="h-2 w-2 rounded-full" :class="dot[state]" />
-    {{ label[state] }}
+    <span class="h-2 w-2 shrink-0 rounded-full" :class="dot[state]" />
+    <span v-if="!compact">{{ label[state] }}</span>
   </div>
 </template>
