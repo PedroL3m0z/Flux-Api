@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Activity, KeyRound, LogOut, User } from 'lucide-vue-next'
+import { useForm } from 'vee-validate'
+import { toTypedSchema } from '@vee-validate/zod'
+import * as z from 'zod'
+import { Activity, KeyRound, LogOut, User, UserPlus } from 'lucide-vue-next'
 import { api, type HealthResult } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import Button from '@/components/ui/Button.vue'
@@ -39,6 +42,39 @@ async function checkApiKey() {
     apiKeyResult.value = '❌ Chave inválida'
   }
 }
+
+// Create user (authenticated; only logged-in users can create accounts).
+const createMsg = ref('')
+const createErr = ref('')
+const creating = ref(false)
+const schema = toTypedSchema(
+  z.object({
+    email: z.string().email('Email inválido'),
+    username: z.string().min(3, 'Mínimo 3').max(32, 'Máximo 32'),
+    password: z.string().min(8, 'Mínimo 8').max(128, 'Máximo 128'),
+  }),
+)
+const { handleSubmit, errors, defineField, resetForm } = useForm({
+  validationSchema: schema,
+})
+const [email, emailAttrs] = defineField('email')
+const [newUsername, usernameAttrs] = defineField('username')
+const [password, passwordAttrs] = defineField('password')
+
+const onCreate = handleSubmit(async (values) => {
+  createMsg.value = ''
+  createErr.value = ''
+  creating.value = true
+  try {
+    const u = await api.register(values)
+    createMsg.value = `Usuário "${u.username}" criado`
+    resetForm()
+  } catch (e) {
+    createErr.value = e instanceof Error ? e.message : 'Falha ao criar'
+  } finally {
+    creating.value = false
+  }
+})
 
 async function onLogout() {
   await auth.logout()
@@ -88,18 +124,47 @@ async function onLogout() {
         <CardContent class="space-y-1 text-sm">
           <p v-if="healthError" class="text-destructive">{{ healthError }}</p>
           <template v-else-if="health">
-            <p>
-              <span class="text-muted-foreground">Status:</span>
-              {{ health.status }}
-            </p>
-            <p
-              v-for="(v, k) in health.info"
-              :key="k"
-            >
+            <p><span class="text-muted-foreground">Status:</span> {{ health.status }}</p>
+            <p v-for="(v, k) in health.info" :key="k">
               <span class="text-muted-foreground">{{ k }}:</span> {{ v.status }}
             </p>
           </template>
           <p v-else class="text-muted-foreground">Carregando...</p>
+        </CardContent>
+      </Card>
+
+      <Card class="md:col-span-2">
+        <CardHeader>
+          <CardTitle class="flex items-center gap-2 text-base">
+            <UserPlus class="h-4 w-4" /> Criar usuário
+          </CardTitle>
+          <CardDescription>Cadastra uma nova conta (requer estar logado)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form class="grid gap-4 sm:grid-cols-3" @submit="onCreate">
+            <div class="grid gap-2">
+              <Label for="c-email">Email</Label>
+              <Input id="c-email" v-model="email" v-bind="emailAttrs" type="email" placeholder="user@flux.dev" />
+              <p v-if="errors.email" class="text-xs text-destructive">{{ errors.email }}</p>
+            </div>
+            <div class="grid gap-2">
+              <Label for="c-username">Usuário</Label>
+              <Input id="c-username" v-model="newUsername" v-bind="usernameAttrs" placeholder="flux_user" />
+              <p v-if="errors.username" class="text-xs text-destructive">{{ errors.username }}</p>
+            </div>
+            <div class="grid gap-2">
+              <Label for="c-password">Senha</Label>
+              <Input id="c-password" v-model="password" v-bind="passwordAttrs" type="password" />
+              <p v-if="errors.password" class="text-xs text-destructive">{{ errors.password }}</p>
+            </div>
+            <div class="sm:col-span-3 flex items-center gap-3">
+              <Button type="submit" :disabled="creating">
+                {{ creating ? 'Criando...' : 'Criar' }}
+              </Button>
+              <span v-if="createMsg" class="text-sm text-primary">{{ createMsg }}</span>
+              <span v-if="createErr" class="text-sm text-destructive">{{ createErr }}</span>
+            </div>
+          </form>
         </CardContent>
       </Card>
 

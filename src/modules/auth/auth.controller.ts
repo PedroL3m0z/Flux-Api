@@ -54,9 +54,9 @@ export class AuthController {
   }
 
   @Post('register')
-  @Public()
+  @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Register a new user (password hashed with Argon2)',
+    summary: 'Create a user (JWT protected; the seeded user creates others)',
   })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);

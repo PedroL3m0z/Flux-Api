@@ -69,16 +69,10 @@ const onSubmit = handleSubmit(async (values) => {
           </div>
           <p v-if="serverError" class="text-sm text-destructive">{{ serverError }}</p>
         </CardContent>
-        <CardFooter class="flex-col gap-3">
+        <CardFooter>
           <Button type="submit" class="w-full" :disabled="submitting">
             {{ submitting ? 'Entrando...' : 'Entrar' }}
           </Button>
-          <p class="text-sm text-muted-foreground">
-            Sem conta?
-            <RouterLink to="/register" class="font-medium text-primary hover:underline">
-              Criar conta
-            </RouterLink>
-          </p>
         </CardFooter>
       </form>
     </Card>

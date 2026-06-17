@@ -1,11 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import {
-  api,
-  type Credentials,
-  type RegisterPayload,
-  type SafeUser,
-} from '@/lib/api'
+import { api, type Credentials, type SafeUser } from '@/lib/api'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<SafeUser | null>(null)
@@ -28,11 +23,6 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = await api.me()
   }
 
-  async function register(payload: RegisterPayload) {
-    await api.register(payload)
-    await login({ username: payload.username, password: payload.password })
-  }
-
   async function logout() {
     try {
       await api.logout()
@@ -41,5 +31,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, initialized, init, login, register, logout }
+  return { user, initialized, init, login, logout }
 })
