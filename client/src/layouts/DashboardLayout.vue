@@ -16,7 +16,7 @@ import HealthBadge from '@/components/HealthBadge.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
-const logoUrl = `${import.meta.env.BASE_URL}logo.png`
+const iconUrl = `${import.meta.env.BASE_URL}icon.png`
 
 const collapsed = ref(localStorage.getItem('sidebar-collapsed') === 'true')
 function toggle() {
@@ -47,7 +47,7 @@ async function onLogout() {
         class="flex h-14 items-center border-b px-3"
         :class="collapsed ? 'justify-center' : 'gap-2'"
       >
-        <img :src="logoUrl" alt="Flux" class="h-8 w-8 shrink-0" />
+        <img :src="iconUrl" alt="Flux" class="h-8 w-8 shrink-0" />
         <span v-if="!collapsed" class="font-semibold">Flux</span>
       </div>
 
