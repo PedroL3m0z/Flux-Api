@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { Module } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { DashboardController } from './dashboard.controller';
 
 /**
  * Serves the built Vue client (client/dist) as a static SPA under /dashboard.
@@ -16,5 +17,6 @@ import { ServeStaticModule } from '@nestjs/serve-static';
       serveRoot: '/dashboard',
     }),
   ],
+  controllers: [DashboardController],
 })
 export class DashboardModule {}
