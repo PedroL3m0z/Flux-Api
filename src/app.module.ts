@@ -2,8 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './core/prisma/prisma.module';
 import { RedisModule } from './core/redis/redis.module';
@@ -40,9 +38,7 @@ import { UsersModule } from './modules/users/users.module';
     DashboardModule,
     SeedModule,
   ],
-  controllers: [AppController],
   providers: [
-    AppService,
     // Global rate limiting
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     // Global JWT auth (routes opt out with @Public())
