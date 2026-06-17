@@ -6,9 +6,30 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      name: 'dashboard',
-      component: () => import('@/pages/Dashboard.vue'),
+      component: () => import('@/layouts/DashboardLayout.vue'),
       meta: { requiresAuth: true },
+      children: [
+        {
+          path: '',
+          name: 'overview',
+          component: () => import('@/pages/dashboard/Overview.vue'),
+        },
+        {
+          path: 'health',
+          name: 'health',
+          component: () => import('@/pages/dashboard/Health.vue'),
+        },
+        {
+          path: 'users',
+          name: 'users',
+          component: () => import('@/pages/dashboard/Users.vue'),
+        },
+        {
+          path: 'api-key',
+          name: 'api-key',
+          component: () => import('@/pages/dashboard/ApiKey.vue'),
+        },
+      ],
     },
     {
       path: '/login',
@@ -33,7 +54,7 @@ router.beforeEach(async (to) => {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
   if (to.meta.guestOnly && auth.user) {
-    return { name: 'dashboard' }
+    return { name: 'overview' }
   }
   return true
 })
