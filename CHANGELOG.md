@@ -5,6 +5,24 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4](https://github.com/PedroL3m0z/Flux-Api/compare/v0.1.3...v0.1.4) (2026-06-17)
+
+
+### Features
+
+* **auth:** httpOnly cookie session + Vue auth UI & dashboard ([#20](https://github.com/PedroL3m0z/Flux-Api/issues/20)) ([405cec9](https://github.com/PedroL3m0z/Flux-Api/commit/405cec9fc33145a90885fb310eeb70fac07c667f))
+* **client:** add 404 page with catch-all route ([577b086](https://github.com/PedroL3m0z/Flux-Api/commit/577b0860821ec553d57b76dbacc960d7965b38d4))
+* **client:** align sidebar/header and add collapse toggle ([af26e17](https://github.com/PedroL3m0z/Flux-Api/commit/af26e1790fdcc44f8c67f166f1ff71cdfeda2ac0))
+* **client:** dark mode and i18n (pt-BR/en) ([7f29e1a](https://github.com/PedroL3m0z/Flux-Api/commit/7f29e1ae402300a12ff2f7a6524fdaf1b8c6ea8c))
+* **client:** dashboard sidebar with section pages ([0415182](https://github.com/PedroL3m0z/Flux-Api/commit/04151821792d5b4e984d3d91a2d23aedc4e2bba1))
+* **client:** health badge in sidebar; add blank Instances section ([612d09a](https://github.com/PedroL3m0z/Flux-Api/commit/612d09a03a526750182fc7f3dd54df0051648a8f))
+* **users:** list all users + create via modal ([44507ae](https://github.com/PedroL3m0z/Flux-Api/commit/44507ae44b68a90e9e8d56a3564811d90c97b8e5))
+
+
+### Bug Fixes
+
+* **client:** square icon for favicon + sidebar ([#28](https://github.com/PedroL3m0z/Flux-Api/issues/28)) ([e07b017](https://github.com/PedroL3m0z/Flux-Api/commit/e07b0171f478115da880a0544345982b28a9a553))
+
 ## [0.1.3](https://github.com/PedroL3m0z/Flux-Api/compare/v0.1.2...v0.1.3) (2026-06-16)
 
 
