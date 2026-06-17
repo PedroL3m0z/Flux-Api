@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 
 defineProps<{ compact?: boolean }>()
+const { t } = useI18n()
 
 type State = 'loading' | 'ok' | 'down'
 const state = ref<State>('loading')
@@ -25,7 +27,11 @@ onUnmounted(() => {
   if (timer) window.clearInterval(timer)
 })
 
-const label = { loading: 'Verificando...', ok: 'Serviços OK', down: 'Serviços fora' }
+const label = computed(() => ({
+  loading: t('health.checking'),
+  ok: t('health.ok'),
+  down: t('health.down'),
+}))
 const dot = {
   loading: 'bg-muted-foreground',
   ok: 'bg-green-500',
