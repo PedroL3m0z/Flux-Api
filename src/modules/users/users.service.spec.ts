@@ -8,6 +8,7 @@ describe('UsersService', () => {
       create: jest.Mock;
       findFirst: jest.Mock;
       findUnique: jest.Mock;
+      findMany: jest.Mock;
     };
   };
 
@@ -17,6 +18,7 @@ describe('UsersService', () => {
         create: jest.fn(),
         findFirst: jest.fn(),
         findUnique: jest.fn(),
+        findMany: jest.fn(),
       },
     };
     service = new UsersService(prisma as unknown as PrismaService);
@@ -59,6 +61,17 @@ describe('UsersService', () => {
 
     expect(prisma.user.findUnique).toHaveBeenCalledWith({
       where: { id: 'u1' },
+    });
+  });
+
+  it('findAll selects safe fields, newest first', async () => {
+    prisma.user.findMany.mockResolvedValue([]);
+
+    await service.findAll();
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
+      select: { id: true, email: true, username: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
     });
   });
 });
