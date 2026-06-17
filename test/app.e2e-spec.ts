@@ -16,8 +16,11 @@ describe('AppModule (e2e)', () => {
     await app.init();
   });
 
-  it('boots and serves no route at / (404)', () => {
-    return request(app.getHttpServer()).get('/').expect(404);
+  it('boots and redirects / to /dashboard', () => {
+    return request(app.getHttpServer())
+      .get('/')
+      .expect(302)
+      .expect('Location', '/dashboard');
   });
 
   afterEach(async () => {
