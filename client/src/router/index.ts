@@ -15,14 +15,14 @@ const router = createRouter({
           component: () => import('@/pages/dashboard/Overview.vue'),
         },
         {
-          path: 'health',
-          name: 'health',
-          component: () => import('@/pages/dashboard/Health.vue'),
-        },
-        {
           path: 'users',
           name: 'users',
           component: () => import('@/pages/dashboard/Users.vue'),
+        },
+        {
+          path: 'instances',
+          name: 'instances',
+          component: () => import('@/pages/dashboard/Instances.vue'),
         },
         {
           path: 'api-key',
