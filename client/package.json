@@ -18,6 +18,7 @@
     "tailwind-merge": "^3.6.0",
     "vee-validate": "^4.15.1",
     "vue": "^3.5.34",
+    "vue-i18n": "^11.4.5",
     "vue-router": "^5.1.0",
     "zod": "^4.4.3"
   },

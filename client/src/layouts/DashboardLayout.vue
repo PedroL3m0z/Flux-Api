@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   ChevronLeft,
   ChevronRight,
@@ -13,9 +14,11 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import Button from '@/components/ui/Button.vue'
 import HealthBadge from '@/components/HealthBadge.vue'
+import AppControls from '@/components/AppControls.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
+const { t } = useI18n()
 const iconUrl = `${import.meta.env.BASE_URL}icon.png`
 
 const collapsed = ref(localStorage.getItem('sidebar-collapsed') === 'true')
@@ -25,10 +28,10 @@ function toggle() {
 }
 
 const nav = [
-  { name: 'overview', label: 'Visão geral', icon: LayoutDashboard },
-  { name: 'users', label: 'Usuários', icon: Users },
-  { name: 'instances', label: 'Instâncias', icon: Server },
-  { name: 'api-key', label: 'API Key', icon: KeyRound },
+  { name: 'overview', key: 'nav.overview', icon: LayoutDashboard },
+  { name: 'users', key: 'nav.users', icon: Users },
+  { name: 'instances', key: 'nav.instances', icon: Server },
+  { name: 'api-key', key: 'nav.apiKey', icon: KeyRound },
 ]
 
 async function onLogout() {
@@ -56,13 +59,13 @@ async function onLogout() {
           v-for="item in nav"
           :key="item.name"
           :to="{ name: item.name }"
-          :title="collapsed ? item.label : undefined"
+          :title="collapsed ? t(item.key) : undefined"
           class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
           :class="collapsed ? 'justify-center' : ''"
           active-class="bg-accent text-accent-foreground"
         >
           <component :is="item.icon" class="h-4 w-4 shrink-0" />
-          <span v-if="!collapsed">{{ item.label }}</span>
+          <span v-if="!collapsed">{{ t(item.key) }}</span>
         </RouterLink>
       </nav>
 
@@ -77,16 +80,17 @@ async function onLogout() {
           variant="ghost"
           size="icon"
           class="hidden md:inline-flex"
-          :title="collapsed ? 'Expandir' : 'Recolher'"
+          :title="collapsed ? t('nav.expand') : t('nav.collapse')"
           @click="toggle"
         >
           <component :is="collapsed ? ChevronRight : ChevronLeft" class="h-4 w-4" />
         </Button>
         <span class="text-sm font-medium md:hidden">Flux Dashboard</span>
         <div class="ml-auto flex items-center gap-3">
+          <AppControls />
           <span class="text-sm text-muted-foreground">{{ auth.user?.username }}</span>
           <Button variant="outline" size="sm" @click="onLogout">
-            <LogOut class="h-4 w-4" /> Sair
+            <LogOut class="h-4 w-4" /> {{ t('common.logout') }}
           </Button>
         </div>
       </header>
