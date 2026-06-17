@@ -1,7 +1,9 @@
 import 'reflect-metadata';
 import { plainToInstance, Type } from 'class-transformer';
 import {
+  IsEmail,
   IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -38,6 +40,24 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   CORS_ORIGIN?: string;
+
+  // "true" to mark the auth cookie Secure (set this when serving behind HTTPS).
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  COOKIE_SECURE?: string;
+
+  // Optional initial user, seeded on startup when all three are set.
+  @IsOptional()
+  @IsEmail()
+  SEED_EMAIL?: string;
+
+  @IsOptional()
+  @IsString()
+  SEED_USERNAME?: string;
+
+  @IsOptional()
+  @IsString()
+  SEED_PASSWORD?: string;
 
   @IsString()
   @IsNotEmpty()

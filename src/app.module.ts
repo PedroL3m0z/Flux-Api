@@ -11,6 +11,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { HealthModule } from './modules/health/health.module';
+import { SeedModule } from './modules/seed/seed.module';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
@@ -37,6 +38,7 @@ import { UsersModule } from './modules/users/users.module';
     UsersModule,
     AuthModule,
     DashboardModule,
+    SeedModule,
   ],
   controllers: [AppController],
   providers: [

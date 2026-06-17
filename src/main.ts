@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { apiReference } from '@scalar/nestjs-api-reference';
+import cookieParser from 'cookie-parser';
 import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -12,6 +13,9 @@ import { API_KEY_HEADER } from './modules/auth/strategies/api-key.strategy';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
+
+  // Parse cookies so the JWT can be read from an httpOnly cookie.
+  app.use(cookieParser());
 
   // --- Security headers ---
   // Strict CSP on the API. Relaxed CSP on the Scalar docs UI (CDN bundle +

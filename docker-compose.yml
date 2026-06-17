@@ -60,6 +60,11 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-flux}:${POSTGRES_PASSWORD:-flux}@postgres:5432/${POSTGRES_DB:-flux}?schema=public
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      # Optional: seed an initial user on first boot (set these in .env).
+      # The x-api-key is the API_KEY from .env (already passed via env_file).
+      SEED_EMAIL: ${SEED_EMAIL:-}
+      SEED_USERNAME: ${SEED_USERNAME:-}
+      SEED_PASSWORD: ${SEED_PASSWORD:-}
     ports:
       - '3000:3000'
     depends_on:
