@@ -1,14 +1,9 @@
 <script setup lang="ts">
 import { RouterLink, RouterView, useRouter } from 'vue-router'
-import {
-  Activity,
-  KeyRound,
-  LayoutDashboard,
-  LogOut,
-  Users,
-} from 'lucide-vue-next'
+import { KeyRound, LayoutDashboard, LogOut, Server, Users } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import Button from '@/components/ui/Button.vue'
+import HealthBadge from '@/components/HealthBadge.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -16,8 +11,8 @@ const logoUrl = `${import.meta.env.BASE_URL}logo.png`
 
 const nav = [
   { name: 'overview', label: 'Visão geral', icon: LayoutDashboard },
-  { name: 'health', label: 'Saúde', icon: Activity },
   { name: 'users', label: 'Usuários', icon: Users },
+  { name: 'instances', label: 'Instâncias', icon: Server },
   { name: 'api-key', label: 'API Key', icon: KeyRound },
 ]
 
@@ -46,6 +41,9 @@ async function onLogout() {
           {{ item.label }}
         </RouterLink>
       </nav>
+      <div class="border-t p-3">
+        <HealthBadge />
+      </div>
     </aside>
 
     <div class="flex flex-1 flex-col">
