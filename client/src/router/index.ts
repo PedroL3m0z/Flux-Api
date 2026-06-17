@@ -16,6 +16,11 @@ const router = createRouter({
       component: () => import('@/pages/Login.vue'),
       meta: { guestOnly: true },
     },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'not-found',
+      component: () => import('@/pages/NotFound.vue'),
+    },
   ],
 })
 
