@@ -8,7 +8,7 @@ const auth = useAuthStore()
 const logoUrl = `${import.meta.env.BASE_URL}logo.png`
 
 function goHome() {
-  void router.push(auth.user ? { name: 'dashboard' } : { name: 'login' })
+  void router.push(auth.user ? { name: 'overview' } : { name: 'login' })
 }
 </script>
 

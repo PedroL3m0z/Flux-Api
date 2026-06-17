@@ -38,7 +38,7 @@ const onSubmit = handleSubmit(async (values) => {
   try {
     await auth.login(values)
     const redirect = route.query.redirect
-    await router.push(typeof redirect === 'string' ? redirect : { name: 'dashboard' })
+    await router.push(typeof redirect === 'string' ? redirect : { name: 'overview' })
   } catch (e) {
     serverError.value = e instanceof Error ? e.message : 'Falha no login'
   } finally {
@@ -58,8 +58,8 @@ const onSubmit = handleSubmit(async (values) => {
       <form @submit="onSubmit">
         <CardContent class="grid gap-4">
           <div class="grid gap-2">
-            <Label for="username">Usuário ou email</Label>
-            <Input id="username" v-model="username" v-bind="usernameAttrs" placeholder="flux_user" />
+            <Label for="username">Usuário</Label>
+            <Input id="username" v-model="username" v-bind="usernameAttrs" />
             <p v-if="errors.username" class="text-xs text-destructive">{{ errors.username }}</p>
           </div>
           <div class="grid gap-2">
