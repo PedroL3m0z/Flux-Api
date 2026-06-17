@@ -101,6 +101,26 @@ export class EnvironmentVariables {
   @IsInt()
   @Min(1)
   THROTTLE_LIMIT?: number;
+
+  // Telegram (GramJS). Optional: the app boots without them, but the Telegram
+  // instance endpoints stay disabled until API_ID + API_HASH are set.
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  TELEGRAM_API_ID?: number;
+
+  @IsOptional()
+  @IsString()
+  TELEGRAM_API_HASH?: string;
+
+  // Used to encrypt the persisted GramJS session at rest (AES-256-GCM).
+  @IsOptional()
+  @IsString()
+  @MinLength(32, {
+    message: 'TELEGRAM_SESSION_SECRET must be at least 32 characters',
+  })
+  TELEGRAM_SESSION_SECRET?: string;
 }
 
 /**

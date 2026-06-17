@@ -2,12 +2,14 @@ import { HealthCheckService, MemoryHealthIndicator } from '@nestjs/terminus';
 import { HealthController } from './health.controller';
 import { PrismaHealthIndicator } from './prisma.health';
 import { RedisHealthIndicator } from './redis.health';
+import { TelegramHealthIndicator } from './telegram.health';
 
 describe('HealthController', () => {
   let controller: HealthController;
   let health: { check: jest.Mock };
   let prisma: { isHealthy: jest.Mock };
   let redis: { isHealthy: jest.Mock };
+  let telegram: { isHealthy: jest.Mock };
   let memory: { checkHeap: jest.Mock };
   let captured: Array<() => unknown>;
 
@@ -21,24 +23,27 @@ describe('HealthController', () => {
     };
     prisma = { isHealthy: jest.fn() };
     redis = { isHealthy: jest.fn() };
+    telegram = { isHealthy: jest.fn() };
     memory = { checkHeap: jest.fn() };
     controller = new HealthController(
       health as unknown as HealthCheckService,
       prisma as unknown as PrismaHealthIndicator,
       redis as unknown as RedisHealthIndicator,
+      telegram as unknown as TelegramHealthIndicator,
       memory as unknown as MemoryHealthIndicator,
     );
   });
 
-  it('runs the postgres, redis and memory indicators', async () => {
+  it('runs the postgres, redis, telegram and memory indicators', async () => {
     const result = await controller.check();
 
     expect(health.check).toHaveBeenCalledTimes(1);
-    expect(captured).toHaveLength(3);
+    expect(captured).toHaveLength(4);
 
     captured.forEach((fn) => fn());
     expect(prisma.isHealthy).toHaveBeenCalledWith('postgres');
     expect(redis.isHealthy).toHaveBeenCalledWith('redis');
+    expect(telegram.isHealthy).toHaveBeenCalledWith('telegram');
     expect(memory.checkHeap).toHaveBeenCalledWith(
       'memory_heap',
       256 * 1024 * 1024,

@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './core/prisma/prisma.module';
 import { RedisModule } from './core/redis/redis.module';
+import { TelegramModule } from './core/telegram/telegram.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
@@ -32,6 +33,7 @@ import { UsersModule } from './modules/users/users.module';
     }),
     PrismaModule,
     RedisModule,
+    TelegramModule,
     HealthModule,
     UsersModule,
     AuthModule,
