@@ -72,6 +72,29 @@ export class TelegramSyncService {
     }
   }
 
+  /**
+   * Persists a batch of historical messages for a known chat without emitting
+   * them on the realtime stream. Used for on-demand history backfill.
+   * Returns how many were persisted.
+   */
+  async ingestHistory(
+    instanceId: string,
+    chatId: string,
+    messages: NormalizedMessage[],
+  ): Promise<number> {
+    let count = 0;
+    for (const message of messages) {
+      try {
+        await this.persistMessage(instanceId, chatId, message);
+        count++;
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : 'unknown error';
+        this.logger.warn(`History ingest skipped for ${instanceId}: ${reason}`);
+      }
+    }
+    return count;
+  }
+
   /** Stops the realtime subscription for an instance (on disconnect/remove). */
   stop(instanceId: string): void {
     const unsub = this.unsubscribers.get(instanceId);
@@ -136,6 +159,19 @@ export class TelegramSyncService {
     );
     const date = new Date(message.date * 1000);
     await this.chats.touch(chatId, date);
+    const contact = message.sender;
+    const sender =
+      senderId && contact
+        ? {
+            id: senderId,
+            name:
+              [contact.firstName, contact.lastName].filter(Boolean).join(' ') ||
+              contact.username ||
+              undefined,
+            username: contact.username,
+            hasPhoto: contact.hasPhoto ?? false,
+          }
+        : undefined;
     return {
       id,
       chatId,
@@ -144,6 +180,17 @@ export class TelegramSyncService {
       outgoing: message.outgoing,
       date: date.toISOString(),
       senderId: senderId ?? undefined,
+      sender,
+      media: message.media
+        ? {
+            type: message.media.type,
+            mimeType: message.media.mimeType,
+            fileName: message.media.fileName,
+            width: message.media.width,
+            height: message.media.height,
+            duration: message.media.duration,
+          }
+        : undefined,
     };
   }
 }

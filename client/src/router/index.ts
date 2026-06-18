@@ -48,6 +48,12 @@ const router = createRouter({
       meta: { guestOnly: true },
     },
     {
+      path: '/unlock',
+      name: 'unlock',
+      component: () => import('@/pages/Unlock.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
       component: () => import('@/pages/NotFound.vue'),
@@ -64,6 +70,19 @@ router.beforeEach(async (to) => {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
   if (to.meta.guestOnly && auth.user) {
+    return auth.apiKeyReady ? { name: 'overview' } : { name: 'unlock' }
+  }
+  // Logged in but no API key yet: force the unlock step before any app route.
+  if (
+    to.meta.requiresAuth &&
+    auth.user &&
+    !auth.apiKeyReady &&
+    to.name !== 'unlock'
+  ) {
+    return { name: 'unlock', query: { redirect: to.fullPath } }
+  }
+  // Already unlocked: keep the unlock page out of reach.
+  if (to.name === 'unlock' && auth.apiKeyReady) {
     return { name: 'overview' }
   }
   return true

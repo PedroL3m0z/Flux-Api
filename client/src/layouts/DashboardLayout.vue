@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import {
   ChevronLeft,
   ChevronRight,
+  Github,
   HelpCircle,
   LayoutDashboard,
   LogOut,
@@ -22,6 +23,7 @@ const router = useRouter()
 const { t } = useI18n()
 const iconUrl = `${import.meta.env.BASE_URL}icon.png`
 const version = __APP_VERSION__
+const repoUrl = 'https://github.com/PedroL3m0z/Flux-Api'
 
 const collapsed = ref(localStorage.getItem('sidebar-collapsed') === 'true')
 function toggle() {
@@ -74,12 +76,20 @@ async function onLogout() {
 
       <div class="space-y-1 border-t p-2">
         <HealthBadge :compact="collapsed" />
-        <p
-          class="text-center text-[11px] text-muted-foreground/70"
-          :title="`Flux v${version}`"
+        <div
+          class="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground/70"
         >
-          {{ collapsed ? version : `v${version}` }}
-        </p>
+          <span :title="`Flux v${version}`">{{ collapsed ? version : `v${version}` }}</span>
+          <a
+            :href="repoUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="GitHub"
+            class="inline-flex items-center transition-colors hover:text-foreground"
+          >
+            <Github class="h-3.5 w-3.5" />
+          </a>
+        </div>
       </div>
     </aside>
 

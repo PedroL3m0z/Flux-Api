@@ -17,7 +17,7 @@ const instance: TelegramInstance = {
 const makeClient = () => ({
   isAuthorized: jest.fn().mockResolvedValue(true),
   disconnect: jest.fn().mockResolvedValue(undefined),
-  getMe: jest.fn(),
+  getMe: jest.fn().mockResolvedValue(null),
   saveSession: jest.fn().mockReturnValue('SAVED_SESSION'),
   qrLogin: jest.fn(),
 });

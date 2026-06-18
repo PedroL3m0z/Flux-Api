@@ -4,6 +4,7 @@ import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
 import { useI18n } from 'vue-i18n'
+import { toast } from 'vue-sonner'
 import { Plus, UserPlus, X } from 'lucide-vue-next'
 import { api, type UserListItem } from '@/lib/api'
 import Button from '@/components/ui/Button.vue'
@@ -39,7 +40,6 @@ function fmtDate(iso: string) {
 }
 
 const showCreate = ref(false)
-const formError = ref('')
 const creating = ref(false)
 
 const schema = toTypedSchema(
@@ -63,20 +63,19 @@ const [username, usernameAttrs] = defineField('username')
 const [password, passwordAttrs] = defineField('password')
 
 function openCreate() {
-  formError.value = ''
   resetForm()
   showCreate.value = true
 }
 
 const onSubmit = handleSubmit(async (values) => {
-  formError.value = ''
   creating.value = true
   try {
     await api.register(values)
     showCreate.value = false
     await loadUsers()
+    toast.success(t('users.created'))
   } catch (e) {
-    formError.value = e instanceof Error ? e.message : t('users.createFailed')
+    toast.error(e instanceof Error ? e.message : t('users.createFailed'))
   } finally {
     creating.value = false
   }
@@ -170,7 +169,6 @@ const onSubmit = handleSubmit(async (values) => {
                 <Input id="password" v-model="password" v-bind="passwordAttrs" type="password" />
                 <p v-if="errors.password" class="text-xs text-destructive">{{ errors.password }}</p>
               </div>
-              <p v-if="formError" class="text-sm text-destructive">{{ formError }}</p>
               <div class="flex justify-end gap-2">
                 <Button type="button" variant="outline" @click="showCreate = false">
                   {{ t('common.cancel') }}

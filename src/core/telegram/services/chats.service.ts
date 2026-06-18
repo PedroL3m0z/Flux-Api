@@ -11,7 +11,10 @@ export class ChatsService {
   async listByInstance(instanceId: string): Promise<ChatView[]> {
     const rows = await this.prisma.chat.findMany({
       where: { instanceId },
-      orderBy: [{ lastMessageAt: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [
+        { lastMessageAt: { sort: 'desc', nulls: 'last' } },
+        { createdAt: 'desc' },
+      ],
     });
     return rows.map((row) => ({
       id: row.id,
@@ -19,6 +22,7 @@ export class ChatsService {
       type: row.type,
       title: row.title ?? undefined,
       username: row.username ?? undefined,
+      hasPhoto: row.hasPhoto,
       lastMessageAt: row.lastMessageAt?.toISOString(),
     }));
   }
@@ -55,22 +59,30 @@ export class ChatsService {
         accessHash: accessHash ?? null,
         title: chat.title,
         username: chat.username,
+        hasPhoto: chat.hasPhoto ?? false,
       },
       update: {
         type: chat.type,
         accessHash,
         title: chat.title,
         username: chat.username,
+        hasPhoto: chat.hasPhoto,
       },
       select: { id: true },
     });
     return row.id;
   }
 
-  /** Bumps the last-activity timestamp used to order the chat list. */
+  /**
+   * Bumps the last-activity timestamp used to order the chat list. Only moves
+   * forward, so backfilling old history never drags a chat down the list.
+   */
   async touch(chatId: string, lastMessageAt: Date): Promise<void> {
-    await this.prisma.chat.update({
-      where: { id: chatId },
+    await this.prisma.chat.updateMany({
+      where: {
+        id: chatId,
+        OR: [{ lastMessageAt: null }, { lastMessageAt: { lt: lastMessageAt } }],
+      },
       data: { lastMessageAt },
     });
   }

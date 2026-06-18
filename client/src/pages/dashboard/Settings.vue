@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { toast } from 'vue-sonner'
 import { KeyRound, Send } from 'lucide-vue-next'
 import { api } from '@/lib/api'
 import Button from '@/components/ui/Button.vue'
@@ -19,19 +20,21 @@ const apiId = ref('')
 const apiHash = ref('')
 const hasApiHash = ref(false)
 const saving = ref(false)
-const saveResult = ref('')
 
 async function loadSettings() {
-  const s = await api.getSettings()
-  apiId.value = s.apiId ?? ''
-  hasApiHash.value = s.hasApiHash
+  try {
+    const s = await api.getSettings()
+    apiId.value = s.apiId ?? ''
+    hasApiHash.value = s.hasApiHash
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : t('settings.loadFailed'))
+  }
 }
 
 onMounted(loadSettings)
 
 async function saveCreds() {
   saving.value = true
-  saveResult.value = ''
   try {
     const body: { apiId?: string; apiHash?: string } = {}
     if (apiId.value.trim()) body.apiId = apiId.value.trim()
@@ -39,9 +42,9 @@ async function saveCreds() {
     const s = await api.updateSettings(body)
     hasApiHash.value = s.hasApiHash
     apiHash.value = ''
-    saveResult.value = t('settings.saved')
+    toast.success(t('settings.saved'))
   } catch (e) {
-    saveResult.value = e instanceof Error ? e.message : t('settings.saveFailed')
+    toast.error(e instanceof Error ? e.message : t('settings.saveFailed'))
   } finally {
     saving.value = false
   }
@@ -49,15 +52,14 @@ async function saveCreds() {
 
 // --- API key test ---
 const apiKey = ref('')
-const result = ref('')
 
 async function check() {
-  result.value = ''
   try {
     const res = await api.apiKeyCheck(apiKey.value)
-    result.value = res.ok ? t('apiKey.valid') : t('apiKey.invalid')
+    if (res.ok) toast.success(t('apiKey.valid'))
+    else toast.error(t('apiKey.invalid'))
   } catch {
-    result.value = t('apiKey.invalid')
+    toast.error(t('apiKey.invalid'))
   }
 }
 </script>
@@ -109,7 +111,6 @@ async function check() {
             <Button :disabled="saving" @click="saveCreds">
               {{ saving ? t('settings.saving') : t('settings.save') }}
             </Button>
-            <span class="text-sm text-muted-foreground">{{ saveResult }}</span>
           </div>
         </CardContent>
       </Card>
@@ -128,7 +129,6 @@ async function check() {
           </div>
           <div class="flex items-center gap-3">
             <Button @click="check">{{ t('apiKey.verify') }}</Button>
-            <span class="text-sm">{{ result }}</span>
           </div>
         </CardContent>
       </Card>

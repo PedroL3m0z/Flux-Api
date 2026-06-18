@@ -43,8 +43,15 @@ export interface TelegramInstance {
   label: string
   engine: EngineKey
   status: InstanceStatus
+  firstName?: string
   username?: string
+  phone?: string
   createdAt: string
+}
+
+export interface InstanceInfo extends TelegramInstance {
+  connected: boolean
+  uptimeSeconds: number | null
 }
 
 export interface TelegramMe {
@@ -67,7 +74,33 @@ export interface ChatView {
   type: PeerType
   title?: string
   username?: string
+  hasPhoto: boolean
   lastMessageAt?: string
+}
+
+export type MediaType =
+  | 'none'
+  | 'photo'
+  | 'video'
+  | 'document'
+  | 'audio'
+  | 'sticker'
+  | 'other'
+
+export interface MediaView {
+  type: MediaType
+  mimeType?: string
+  fileName?: string
+  width?: number
+  height?: number
+  duration?: number
+}
+
+export interface MessageSenderView {
+  id: string
+  name?: string
+  username?: string
+  hasPhoto: boolean
 }
 
 export interface MessageView {
@@ -78,6 +111,8 @@ export interface MessageView {
   outgoing: boolean
   date: string
   senderId?: string
+  sender?: MessageSenderView
+  media?: MediaView
 }
 
 export interface MessagePage {
@@ -99,10 +134,40 @@ export interface SystemStats {
   }
 }
 
+// --- API key (required on every request; entered after login) ---
+
+const API_KEY_STORAGE = 'flux-api-key'
+let apiKey = localStorage.getItem(API_KEY_STORAGE) ?? ''
+
+export function setApiKey(key: string): void {
+  apiKey = key
+  localStorage.setItem(API_KEY_STORAGE, key)
+}
+
+export function clearApiKey(): void {
+  apiKey = ''
+  localStorage.removeItem(API_KEY_STORAGE)
+}
+
+export function hasApiKey(): boolean {
+  return apiKey.length > 0
+}
+
+/** Appends the API key as a query param (for SSE/img URLs that can't set headers). */
+function withKey(url: string): string {
+  if (!apiKey) return url
+  const sep = url.includes('?') ? '&' : '?'
+  return `${url}${sep}apiKey=${encodeURIComponent(apiKey)}`
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(options.headers ?? {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(apiKey ? { 'x-api-key': apiKey } : {}),
+      ...(options.headers ?? {}),
+    },
     ...options,
   })
 
@@ -152,6 +217,16 @@ export const api = {
     }),
   deleteInstance: (id: string) =>
     request<void>(`/telegram/instances/${id}`, { method: 'DELETE' }),
+  instanceInfo: (id: string) =>
+    request<InstanceInfo>(`/telegram/instances/${id}/info`),
+  startInstance: (id: string) =>
+    request<TelegramInstance>(`/telegram/instances/${id}/start`, {
+      method: 'POST',
+    }),
+  stopInstance: (id: string) =>
+    request<{ ok: boolean }>(`/telegram/instances/${id}/stop`, {
+      method: 'POST',
+    }),
   submitQrPassword: (id: string, password: string) =>
     request<{ ok: boolean }>(`/telegram/instances/${id}/login/password`, {
       method: 'POST',
@@ -159,7 +234,7 @@ export const api = {
     }),
   // Server-sent stream of the QR login flow; caller subscribes and closes it.
   qrLoginStream: (id: string) =>
-    new EventSource(`/telegram/instances/${id}/login/qr`),
+    new EventSource(withKey(`/telegram/instances/${id}/login/qr`)),
 
   instanceChats: (id: string) =>
     request<ChatView[]>(`/telegram/instances/${id}/chats`),
@@ -181,9 +256,46 @@ export const api = {
       `/telegram/instances/${id}/chats/${chatId}/messages`,
       { method: 'POST', body: JSON.stringify({ text }) },
     ),
+  sendChatMedia: async (
+    id: string,
+    chatId: string,
+    file: File,
+    caption?: string,
+  ): Promise<MessageView> => {
+    const form = new FormData()
+    form.append('file', file)
+    if (caption) form.append('caption', caption)
+    // Multipart: let the browser set Content-Type (boundary); keep the API key.
+    const res = await fetch(
+      `/telegram/instances/${id}/chats/${chatId}/media`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: { ...(apiKey ? { 'x-api-key': apiKey } : {}) },
+        body: form,
+      },
+    )
+    const text = await res.text()
+    const data: unknown = text ? JSON.parse(text) : null
+    if (!res.ok) {
+      const message =
+        (data as { message?: string | string[] } | null)?.message ??
+        res.statusText
+      throw new Error(Array.isArray(message) ? message.join(', ') : message)
+    }
+    return data as MessageView
+  },
   // Realtime stream of newly ingested messages for an instance.
   messagesStream: (id: string) =>
-    new EventSource(`/telegram/instances/${id}/messages/stream`),
+    new EventSource(withKey(`/telegram/instances/${id}/messages/stream`)),
+
+  // Byte URLs (used directly as <img>/<a> sources; auth via cookie + key query).
+  chatPhotoUrl: (id: string, chatId: string) =>
+    withKey(`/telegram/instances/${id}/chats/${chatId}/photo`),
+  contactPhotoUrl: (id: string, contactId: string) =>
+    withKey(`/telegram/instances/${id}/contacts/${contactId}/photo`),
+  messageMediaUrl: (id: string, chatId: string, tgMessageId: string) =>
+    withKey(`/telegram/instances/${id}/chats/${chatId}/messages/${tgMessageId}/media`),
 
   stats: () => request<SystemStats>('/telegram/stats'),
   getSettings: () => request<TelegramSettings>('/telegram/settings'),

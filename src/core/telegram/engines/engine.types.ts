@@ -12,6 +12,7 @@ export interface TelegramMe {
   id: string;
   username?: string;
   firstName?: string;
+  phone?: string;
 }
 
 /**
@@ -33,6 +34,41 @@ export interface EngineCapabilities {
 
 export type PeerType = 'user' | 'group' | 'channel';
 
+/** Media classification, mirrors the Prisma `MediaType` enum. */
+export type MediaType =
+  | 'none'
+  | 'photo'
+  | 'video'
+  | 'document'
+  | 'audio'
+  | 'sticker'
+  | 'other';
+
+/** Metadata about a message's attachment; bytes are downloaded lazily. */
+export interface NormalizedMedia {
+  type: MediaType;
+  mimeType?: string;
+  fileName?: string;
+  size?: number;
+  width?: number;
+  height?: number;
+  duration?: number;
+}
+
+/** Raw bytes of a downloaded media/avatar, ready to stream to the client. */
+export interface MediaBlob {
+  data: Buffer;
+  mimeType: string;
+  fileName?: string;
+}
+
+/** An uploaded file to send as a message attachment. */
+export interface UploadedMedia {
+  data: Buffer;
+  fileName: string;
+  mimeType?: string;
+}
+
 /** Engine-agnostic shapes. int64 ids cross the boundary as strings. */
 export interface NormalizedContact {
   tgUserId: string;
@@ -41,6 +77,7 @@ export interface NormalizedContact {
   lastName?: string;
   username?: string;
   phone?: string;
+  hasPhoto?: boolean;
 }
 
 export interface NormalizedChat {
@@ -49,6 +86,7 @@ export interface NormalizedChat {
   accessHash?: string;
   title?: string;
   username?: string;
+  hasPhoto?: boolean;
 }
 
 export interface NormalizedMessage {
@@ -59,6 +97,7 @@ export interface NormalizedMessage {
   text?: string;
   date: number; // unix seconds
   replyToTgId?: string;
+  media?: NormalizedMedia;
 }
 
 export interface DialogSnapshot {
@@ -102,8 +141,21 @@ export interface EngineClient {
     opts?: { limit?: number; beforeId?: string },
   ): Promise<NormalizedMessage[]>;
   sendMessage?(peer: PeerRef, text: string): Promise<NormalizedMessage>;
+  /** Sends a file (photo/video/document) with an optional caption. */
+  sendMedia?(
+    peer: PeerRef,
+    file: UploadedMedia,
+    caption?: string,
+  ): Promise<NormalizedMessage>;
   /** Subscribes to incoming messages; returns an unsubscribe function. */
   onMessage?(handler: (message: NormalizedMessage) => void): () => void;
+  /** Downloads a peer's profile/group photo; null when there is none. */
+  downloadAvatar?(peer: PeerRef): Promise<MediaBlob | null>;
+  /** Downloads a message's attachment bytes; null when absent/unavailable. */
+  downloadMessageMedia?(
+    peer: PeerRef,
+    tgMessageId: string,
+  ): Promise<MediaBlob | null>;
 }
 
 /**

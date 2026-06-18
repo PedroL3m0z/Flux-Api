@@ -68,6 +68,7 @@ model Instance {
   apiId      Int?
   apiHashEnc String?
   tgUserId   BigInt?
+  firstName  String?
   username   String?
   phone      String?
   createdAt  DateTime       @default(now())
@@ -91,6 +92,7 @@ model Contact {
   lastName   String?
   username   String?
   phone      String?
+  hasPhoto   Boolean  @default(false)
   isContact  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -110,6 +112,7 @@ model Chat {
   accessHash    BigInt?
   title         String?
   username      String?
+  hasPhoto      Boolean   @default(false)
   lastMessageAt DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

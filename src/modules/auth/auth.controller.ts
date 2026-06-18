@@ -20,6 +20,7 @@ import type { Response } from 'express';
 import { AuthService, type SafeUser } from './auth.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { NoApiKey } from '../../common/decorators/no-api-key.decorator';
 import {
   ACCESS_TOKEN_COOKIE,
   accessTokenCookieOptions,
@@ -90,8 +91,11 @@ export class AuthController {
   }
 
   @Get('me')
+  @NoApiKey()
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Current user (JWT protected)' })
+  @ApiOperation({
+    summary: 'Current user (JWT protected; no API key required)',
+  })
   me(@CurrentUser() user: SafeUser) {
     return user;
   }

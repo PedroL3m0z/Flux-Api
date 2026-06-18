@@ -10,6 +10,7 @@ import { TelegramModule as TelegramHttpModule } from './modules/telegram/telegra
 import { AuthModule } from './modules/auth/auth.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { GlobalApiKeyGuard } from './modules/auth/guards/global-api-key.guard';
 import { HealthModule } from './modules/health/health.module';
 import { SeedModule } from './modules/seed/seed.module';
 import { UsersModule } from './modules/users/users.module';
@@ -47,6 +48,8 @@ import { UsersModule } from './modules/users/users.module';
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     // Global JWT auth (routes opt out with @Public())
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    // Global API-key requirement (routes opt out with @Public()/@NoApiKey())
+    { provide: APP_GUARD, useClass: GlobalApiKeyGuard },
   ],
 })
 export class AppModule {}

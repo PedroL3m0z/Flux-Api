@@ -4,6 +4,7 @@ import bigInt from 'big-integer';
 import { Api, TelegramClient } from 'telegram';
 import { NewMessage, type NewMessageEvent } from 'telegram/events';
 import { StringSession } from 'telegram/sessions';
+import { CustomFile } from 'telegram/client/uploads';
 import {
   type DialogSnapshot,
   type EngineCapabilities,
@@ -11,12 +12,16 @@ import {
   type EngineConfig,
   type EngineKey,
   type InstanceEngine,
+  type MediaBlob,
+  type MediaType,
   type NormalizedChat,
   type NormalizedContact,
+  type NormalizedMedia,
   type NormalizedMessage,
   type PeerRef,
   type QrCallbacks,
   type TelegramMe,
+  type UploadedMedia,
 } from './engine.types';
 
 function toMe(user: Api.TypeUser): TelegramMe {
@@ -24,6 +29,7 @@ function toMe(user: Api.TypeUser): TelegramMe {
   if (user instanceof Api.User) {
     me.username = user.username ?? undefined;
     me.firstName = user.firstName ?? undefined;
+    me.phone = user.phone ?? undefined;
   }
   return me;
 }
@@ -32,7 +38,17 @@ function nameOf(user: Api.User): string | undefined {
   return [user.firstName, user.lastName].filter(Boolean).join(' ') || undefined;
 }
 
+function hasProfilePhoto(entity: Api.TypeUser | Api.TypeChat): boolean {
+  const photo = 'photo' in entity ? entity.photo : undefined;
+  return Boolean(
+    photo &&
+    !(photo instanceof Api.UserProfilePhotoEmpty) &&
+    !(photo instanceof Api.ChatPhotoEmpty),
+  );
+}
+
 function chatFromEntity(entity: Api.TypeUser | Api.TypeChat): NormalizedChat {
+  const hasPhoto = hasProfilePhoto(entity);
   if (entity instanceof Api.User) {
     return {
       tgPeerId: entity.id.toString(),
@@ -40,6 +56,7 @@ function chatFromEntity(entity: Api.TypeUser | Api.TypeChat): NormalizedChat {
       accessHash: entity.accessHash?.toString(),
       title: nameOf(entity),
       username: entity.username ?? undefined,
+      hasPhoto,
     };
   }
   if (entity instanceof Api.Channel) {
@@ -49,11 +66,62 @@ function chatFromEntity(entity: Api.TypeUser | Api.TypeChat): NormalizedChat {
       accessHash: entity.accessHash?.toString(),
       title: entity.title,
       username: entity.username ?? undefined,
+      hasPhoto,
     };
   }
   // Api.Chat / Api.ChatForbidden / Api.ChannelForbidden (basic groups)
   const title = 'title' in entity ? entity.title : undefined;
-  return { tgPeerId: entity.id.toString(), type: 'group', title };
+  return { tgPeerId: entity.id.toString(), type: 'group', title, hasPhoto };
+}
+
+/** Classifies a message's attachment into normalized media metadata. */
+function mediaFromMessage(msg: Api.Message): NormalizedMedia | undefined {
+  const media = msg.media;
+  if (!media) {
+    return undefined;
+  }
+  if (media instanceof Api.MessageMediaPhoto) {
+    return { type: 'photo', mimeType: 'image/jpeg' };
+  }
+  if (media instanceof Api.MessageMediaDocument) {
+    const doc = media.document;
+    if (!(doc instanceof Api.Document)) {
+      return { type: 'document' };
+    }
+    const attrs = doc.attributes ?? [];
+    const mimeType = doc.mimeType || undefined;
+    const fileName = attrs.find(
+      (a): a is Api.DocumentAttributeFilename =>
+        a instanceof Api.DocumentAttributeFilename,
+    )?.fileName;
+    const video = attrs.find(
+      (a): a is Api.DocumentAttributeVideo =>
+        a instanceof Api.DocumentAttributeVideo,
+    );
+    let type: MediaType = 'document';
+    if (attrs.some((a) => a instanceof Api.DocumentAttributeSticker)) {
+      type = 'sticker';
+    } else if (video || mimeType?.startsWith('video/')) {
+      type = 'video';
+    } else if (
+      attrs.some((a) => a instanceof Api.DocumentAttributeAudio) ||
+      mimeType?.startsWith('audio/')
+    ) {
+      type = 'audio';
+    } else if (mimeType?.startsWith('image/')) {
+      type = 'photo';
+    }
+    return {
+      type,
+      mimeType,
+      fileName,
+      size: doc.size ? Number(doc.size.toString()) : undefined,
+      width: video?.w,
+      height: video?.h,
+      duration: video?.duration,
+    };
+  }
+  return { type: 'other' };
 }
 
 function contactFromUser(user: Api.User): NormalizedContact {
@@ -64,6 +132,7 @@ function contactFromUser(user: Api.User): NormalizedContact {
     lastName: user.lastName ?? undefined,
     username: user.username ?? undefined,
     phone: user.phone ?? undefined,
+    hasPhoto: hasProfilePhoto(user),
   };
 }
 
@@ -82,7 +151,12 @@ function messageToNormalized(
   chat: NormalizedChat,
 ): NormalizedMessage {
   let sender: NormalizedContact | undefined;
-  if (msg.fromId instanceof Api.PeerUser) {
+  // Prefer the resolved sender entity (carries name + photo) when GramJS has it
+  // cached; otherwise fall back to the bare id from the message header.
+  const entity = msg.sender;
+  if (entity instanceof Api.User) {
+    sender = contactFromUser(entity);
+  } else if (msg.fromId instanceof Api.PeerUser) {
     sender = { tgUserId: msg.fromId.userId.toString() };
   } else if (chat.type === 'user' && !msg.out) {
     sender = { tgUserId: chat.tgPeerId };
@@ -98,6 +172,7 @@ function messageToNormalized(
       msg.replyTo instanceof Api.MessageReplyHeader
         ? msg.replyTo.replyToMsgId?.toString()
         : undefined,
+    media: mediaFromMessage(msg),
   };
 }
 
@@ -212,6 +287,65 @@ class GramJsClient implements EngineClient {
       message: text,
     });
     return messageToNormalized(message, chat);
+  }
+
+  async sendMedia(
+    peer: PeerRef,
+    file: UploadedMedia,
+    caption?: string,
+  ): Promise<NormalizedMessage> {
+    const chat: NormalizedChat = {
+      tgPeerId: peer.tgPeerId,
+      type: peer.type,
+      accessHash: peer.accessHash,
+    };
+    const upload = new CustomFile(
+      file.fileName,
+      file.data.length,
+      '',
+      file.data,
+    );
+    // Send images/videos as media; everything else as a document.
+    const forceDocument = !(
+      file.mimeType?.startsWith('image/') || file.mimeType?.startsWith('video/')
+    );
+    const message = await this.client.sendFile(inputPeer(peer), {
+      file: upload,
+      caption,
+      forceDocument,
+    });
+    return messageToNormalized(message, chat);
+  }
+
+  async downloadAvatar(peer: PeerRef): Promise<MediaBlob | null> {
+    const buffer = await this.client.downloadProfilePhoto(inputPeer(peer));
+    if (!buffer || !(buffer instanceof Buffer) || buffer.length === 0) {
+      return null;
+    }
+    return { data: buffer, mimeType: 'image/jpeg' };
+  }
+
+  async downloadMessageMedia(
+    peer: PeerRef,
+    tgMessageId: string,
+  ): Promise<MediaBlob | null> {
+    const messages = await this.client.getMessages(inputPeer(peer), {
+      ids: [Number(tgMessageId)],
+    });
+    const msg = messages[0];
+    if (!(msg instanceof Api.Message) || !msg.media) {
+      return null;
+    }
+    const data = await this.client.downloadMedia(msg);
+    if (!data || !(data instanceof Buffer) || data.length === 0) {
+      return null;
+    }
+    const meta = mediaFromMessage(msg);
+    return {
+      data,
+      mimeType: meta?.mimeType ?? 'application/octet-stream',
+      fileName: meta?.fileName,
+    };
   }
 
   onMessage(handler: (message: NormalizedMessage) => void): () => void {
