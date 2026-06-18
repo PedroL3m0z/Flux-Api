@@ -19,5 +19,127 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  instances Instance[]
+
   @@map("users")
+}
+
+enum InstanceStatus {
+  new
+  connecting
+  awaiting_qr
+  password_required
+  authorized
+  disconnected
+  error
+}
+
+enum PeerType {
+  user
+  group
+  channel
+}
+
+enum MediaType {
+  none
+  photo
+  video
+  document
+  audio
+  sticker
+  other
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
+model Instance {
+  id         String         @id @default(uuid())
+  ownerId    String
+  owner      User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  label      String
+  engine     String         @default("gramjs")
+  status     InstanceStatus @default(new)
+  apiId      Int?
+  apiHashEnc String?
+  tgUserId   BigInt?
+  username   String?
+  phone      String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  chats    Chat[]
+  contacts Contact[]
+  messages Message[]
+
+  @@index([ownerId])
+  @@map("telegram_instances")
+}
+
+model Contact {
+  id         String   @id @default(uuid())
+  instanceId String
+  instance   Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  tgUserId   BigInt
+  accessHash BigInt?
+  firstName  String?
+  lastName   String?
+  username   String?
+  phone      String?
+  isContact  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  messages Message[] @relation("MessageSender")
+
+  @@unique([instanceId, tgUserId])
+  @@map("telegram_contacts")
+}
+
+model Chat {
+  id            String    @id @default(uuid())
+  instanceId    String
+  instance      Instance  @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  tgPeerId      BigInt
+  type          PeerType
+  accessHash    BigInt?
+  title         String?
+  username      String?
+  lastMessageAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  messages Message[]
+
+  @@unique([instanceId, tgPeerId])
+  @@index([instanceId, lastMessageAt])
+  @@map("telegram_chats")
+}
+
+model Message {
+  id          String    @id @default(uuid())
+  instanceId  String
+  instance    Instance  @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  chatId      String
+  chat        Chat      @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  tgMessageId BigInt
+  senderId    String?
+  sender      Contact?  @relation("MessageSender", fields: [senderId], references: [id], onDelete: SetNull)
+  outgoing    Boolean   @default(false)
+  text        String?
+  mediaType   MediaType @default(none)
+  mediaRef    Json?
+  replyToTgId BigInt?
+  date        DateTime
+  editedAt    DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([instanceId, chatId, tgMessageId])
+  @@index([chatId, date])
+  @@map("telegram_messages")
 }

@@ -1,13 +1,9 @@
-/** Redis key for the membership set of all Telegram instance ids. */
-export const INSTANCES_SET = 'telegram:instances';
-
-/** Redis key for an instance's metadata hash. */
-export const instanceKey = (id: string): string => `telegram:instance:${id}`;
+import type { EngineKey } from './engines/engine.types';
 
 /** Redis key for an instance's saved GramJS session string. */
 export const sessionKey = (id: string): string => `telegram:session:${id}`;
 
-/** Lifecycle status of a Telegram instance. */
+/** Lifecycle status of a Telegram instance (mirrors the Prisma enum). */
 export type InstanceStatus =
   | 'new'
   | 'connecting'
@@ -17,11 +13,14 @@ export type InstanceStatus =
   | 'disconnected'
   | 'error';
 
-/** Metadata persisted in Redis for each Telegram instance. */
+/** Public view of an instance (no secrets). Persisted in Postgres. */
 export interface TelegramInstance {
   id: string;
   label: string;
+  engine: EngineKey;
   status: InstanceStatus;
   username?: string;
+  /** Non-secret part of the engine config, safe to expose (e.g. GramJS apiId). */
+  apiId?: string;
   createdAt: string;
 }

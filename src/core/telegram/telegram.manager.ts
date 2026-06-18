@@ -4,58 +4,87 @@ import {
   OnApplicationBootstrap,
   OnModuleDestroy,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { TelegramClient } from 'telegram';
-import { StringSession } from 'telegram/sessions';
+import { Observable, Subject } from 'rxjs';
+import { EngineRegistry } from './engines/engine.registry';
+import type {
+  EngineClient,
+  EngineKey,
+  TelegramMe,
+} from './engines/engine.types';
+import { InstancesService } from './services/instances.service';
+import { SettingsService } from './services/settings.service';
 import { TelegramSessionStore } from './telegram-session.store';
+import { TelegramSyncService } from './services/telegram-sync.service';
+import type { EngineConfig } from './engines/engine.types';
 import type { TelegramInstance } from './telegram.constants';
 
 export interface InstancesSummary {
   enabled: boolean;
   total: number;
   connected: number;
+  engines: EngineKey[];
 }
 
+/** Events streamed to the dashboard during a QR login attempt. */
+export type QrLoginEvent =
+  | { type: 'qr'; url: string; expires: number }
+  | { type: 'password_required' }
+  | { type: 'authorized'; me: TelegramMe }
+  | { type: 'error'; message: string };
+
 /**
- * Owns the live GramJS clients (one per instance) and their lifecycle.
+ * Owns the live instance clients and their lifecycle, engine-agnostically.
  *
- * On boot it rehydrates every instance that has a saved session from Redis and
- * reconnects it, so authorized accounts survive restarts without a new login.
- * Disabled (no-op) when TELEGRAM_API_ID / TELEGRAM_API_HASH are absent, so the
- * app still boots and the rest of the API keeps working.
+ * The actual Telegram work (connecting, QR login, session serialization) is
+ * delegated to the engine resolved from each instance's `engine` field, so new
+ * engines (e.g. Telegraf) can be added without touching this class. On boot it
+ * rehydrates every instance that has a saved session and reconnects it, so
+ * authorized accounts survive restarts; it disconnects them on shutdown.
  */
 @Injectable()
 export class TelegramManager
   implements OnApplicationBootstrap, OnModuleDestroy
 {
   private readonly logger = new Logger(TelegramManager.name);
-  private readonly clients = new Map<string, TelegramClient>();
+  private readonly clients = new Map<string, EngineClient>();
+  private readonly pendingPasswords = new Map<string, (pwd: string) => void>();
 
   constructor(
-    private readonly config: ConfigService,
-    private readonly store: TelegramSessionStore,
+    private readonly registry: EngineRegistry,
+    private readonly instances: InstancesService,
+    private readonly settings: SettingsService,
+    private readonly session: TelegramSessionStore,
+    private readonly sync: TelegramSyncService,
   ) {}
 
+  /** Credentials for an instance: global settings, overridden per-instance. */
+  private async resolveConfig(id: string): Promise<EngineConfig> {
+    const global = await this.settings.getTelegramCredentials();
+    const instance = await this.instances.getCredentials(id);
+    return { ...global, ...instance };
+  }
+
+  /** True when at least one engine is registered and configured to run. */
   get enabled(): boolean {
-    return this.apiId !== undefined && this.apiHash !== undefined;
+    return this.registry.availableKeys().length > 0;
   }
 
-  private get apiId(): number | undefined {
-    return this.config.get<number>('TELEGRAM_API_ID');
+  availableEngines(): EngineKey[] {
+    return this.registry.availableKeys();
   }
 
-  private get apiHash(): string | undefined {
-    return this.config.get<string>('TELEGRAM_API_HASH');
+  isEngineAvailable(key: EngineKey): boolean {
+    return this.registry.isAvailable(key);
   }
 
   async onApplicationBootstrap(): Promise<void> {
     if (!this.enabled) {
       this.logger.warn(
-        'Telegram disabled: set TELEGRAM_API_ID and TELEGRAM_API_HASH to enable it',
+        'Telegram disabled: no engine is configured (set TELEGRAM_API_ID/HASH for GramJS)',
       );
       return;
     }
-    const instances = await this.store.list();
+    const instances = await this.instances.list();
     for (const instance of instances) {
       await this.restore(instance);
     }
@@ -63,6 +92,9 @@ export class TelegramManager
   }
 
   async onModuleDestroy(): Promise<void> {
+    for (const id of this.clients.keys()) {
+      this.sync.stop(id);
+    }
     await Promise.all(
       [...this.clients.values()].map((client) =>
         client.disconnect().catch(() => undefined),
@@ -73,77 +105,172 @@ export class TelegramManager
 
   // --- Instance management ---
 
-  createInstance(label: string): Promise<TelegramInstance> {
-    return this.store.create(label);
+  createInstance(
+    ownerId: string,
+    label: string,
+    engine?: EngineKey,
+    creds?: { apiId?: string; apiHash?: string },
+  ): Promise<TelegramInstance> {
+    return this.instances.create(ownerId, label, engine, creds);
   }
 
   listInstances(): Promise<TelegramInstance[]> {
-    return this.store.list();
+    return this.instances.list();
   }
 
   getInstance(id: string): Promise<TelegramInstance | null> {
-    return this.store.get(id);
+    return this.instances.get(id);
   }
 
   async removeInstance(id: string): Promise<void> {
+    this.sync.stop(id);
     const client = this.clients.get(id);
     if (client) {
       await client.disconnect().catch(() => undefined);
       this.clients.delete(id);
     }
-    await this.store.remove(id);
+    await this.instances.remove(id);
+    await this.session.deleteSession(id);
   }
 
-  getClient(id: string): TelegramClient | undefined {
+  getClient(id: string): EngineClient | undefined {
     return this.clients.get(id);
   }
 
+  /** Number of instances with a live connected client. */
+  connectedCount(): number {
+    return this.clients.size;
+  }
+
   async instancesSummary(): Promise<InstancesSummary> {
-    if (!this.enabled) {
-      return { enabled: false, total: 0, connected: 0 };
+    const engines = this.registry.availableKeys();
+    if (engines.length === 0) {
+      return { enabled: false, total: 0, connected: 0, engines };
     }
-    const instances = await this.store.list();
+    const instances = await this.instances.list();
     return {
       enabled: true,
       total: instances.length,
       connected: this.clients.size,
+      engines,
     };
   }
 
-  /** Builds a client from a (possibly empty) session string. */
-  buildClient(session: string): TelegramClient {
-    return new TelegramClient(
-      new StringSession(session),
-      this.apiId as number,
-      this.apiHash as string,
-      { connectionRetries: 5 },
-    );
+  // --- QR login ---
+
+  /**
+   * Starts a QR login for an instance and streams the flow as it progresses:
+   * `qr` (token URL, refreshed every ~30s), `password_required` (2FA), then
+   * `authorized` or `error`. The stream completes once the attempt resolves.
+   */
+  startQrLogin(id: string): Observable<QrLoginEvent> {
+    const subject = new Subject<QrLoginEvent>();
+    void this.runQrLogin(id, subject);
+    return subject.asObservable();
   }
 
-  /** Tracks a connected client so the lifecycle hooks can manage it. */
-  track(id: string, client: TelegramClient): void {
-    this.clients.set(id, client);
+  /** Resolves a pending 2FA password prompt. Returns false if none is waiting. */
+  submitPassword(id: string, password: string): boolean {
+    const resolver = this.pendingPasswords.get(id);
+    if (!resolver) {
+      return false;
+    }
+    this.pendingPasswords.delete(id);
+    resolver(password);
+    return true;
+  }
+
+  private async runQrLogin(
+    id: string,
+    subject: Subject<QrLoginEvent>,
+  ): Promise<void> {
+    const instance = await this.instances.get(id);
+    if (!instance) {
+      this.fail(subject, 'Instance not found');
+      return;
+    }
+    const engine = this.registry.tryGet(instance.engine);
+    if (!engine || !engine.isAvailable()) {
+      this.fail(subject, `Engine "${instance.engine}" is not available`);
+      return;
+    }
+    if (!engine.capabilities.qrLogin) {
+      this.fail(
+        subject,
+        `Engine "${instance.engine}" does not support QR login`,
+      );
+      return;
+    }
+
+    let client: EngineClient | undefined;
+    try {
+      const config = await this.resolveConfig(id);
+      client = await engine.connect('', config);
+      await this.instances.update(id, { status: 'awaiting_qr' });
+
+      const me = await client.qrLogin!({
+        onQr: (url, expires) => subject.next({ type: 'qr', url, expires }),
+        onPasswordRequired: async () => {
+          await this.instances.update(id, { status: 'password_required' });
+          subject.next({ type: 'password_required' });
+          return this.awaitPassword(id);
+        },
+      });
+
+      await this.session.saveSession(id, client.saveSession());
+      this.clients.set(id, client);
+      await this.instances.update(id, {
+        status: 'authorized',
+        username: me.username,
+      });
+      subject.next({ type: 'authorized', me });
+      void this.sync.onAuthorized(id, client);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown error';
+      await this.instances.update(id, { status: 'error' });
+      await client?.disconnect().catch(() => undefined);
+      subject.next({ type: 'error', message });
+    } finally {
+      this.pendingPasswords.delete(id);
+      subject.complete();
+    }
+  }
+
+  private fail(subject: Subject<QrLoginEvent>, message: string): void {
+    subject.next({ type: 'error', message });
+    subject.complete();
+  }
+
+  private awaitPassword(id: string): Promise<string> {
+    return new Promise((resolve) => this.pendingPasswords.set(id, resolve));
   }
 
   private async restore(instance: TelegramInstance): Promise<void> {
-    const session = await this.store.loadSession(instance.id);
+    const engine = this.registry.tryGet(instance.engine);
+    if (!engine || !engine.isAvailable()) {
+      return;
+    }
+    const session = await this.session.loadSession(instance.id);
     if (!session) {
       return;
     }
     try {
-      const client = this.buildClient(session);
-      await client.connect();
-      const authorized = await client.isUserAuthorized();
+      const config = await this.resolveConfig(instance.id);
+      const client = await engine.connect(session, config);
+      const authorized = await client.isAuthorized();
       this.clients.set(instance.id, client);
-      await this.store.update(instance.id, {
+      await this.instances.update(instance.id, {
         status: authorized ? 'authorized' : 'disconnected',
       });
+      if (authorized) {
+        void this.sync.onAuthorized(instance.id, client);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown error';
       this.logger.error(
         `Failed to restore instance ${instance.id}: ${message}`,
       );
-      await this.store.update(instance.id, { status: 'error' });
+      await this.instances.update(instance.id, { status: 'error' });
     }
   }
 }
