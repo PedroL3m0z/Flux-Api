@@ -10,6 +10,14 @@ import { AppModule } from './app.module';
 import { resolveCorsOrigin } from './config/cors';
 import { API_KEY_HEADER } from './modules/auth/strategies/api-key.strategy';
 
+// Telegram ids are int64 (BigInt), which JSON.stringify can't serialize.
+// Emit them as strings in API responses.
+(BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function (
+  this: bigint,
+): string {
+  return this.toString();
+};
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);

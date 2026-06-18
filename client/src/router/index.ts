@@ -25,9 +25,19 @@ const router = createRouter({
           component: () => import('@/pages/dashboard/Instances.vue'),
         },
         {
-          path: 'api-key',
-          name: 'api-key',
-          component: () => import('@/pages/dashboard/ApiKey.vue'),
+          path: 'instances/:id',
+          name: 'instance-chats',
+          component: () => import('@/pages/dashboard/InstanceChats.vue'),
+        },
+        {
+          path: 'settings',
+          name: 'settings',
+          component: () => import('@/pages/dashboard/Settings.vue'),
+        },
+        {
+          path: 'help',
+          name: 'help',
+          component: () => import('@/pages/dashboard/Help.vue'),
         },
       ],
     },

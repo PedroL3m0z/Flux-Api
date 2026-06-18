@@ -31,6 +31,7 @@ export default defineConfig({
     proxy: {
       '/auth': 'http://localhost:3000',
       '/health': 'http://localhost:3000',
+      '/telegram': 'http://localhost:3000',
     },
   },
 })

@@ -5,10 +5,11 @@ import { useI18n } from 'vue-i18n'
 import {
   ChevronLeft,
   ChevronRight,
-  KeyRound,
+  HelpCircle,
   LayoutDashboard,
   LogOut,
   Server,
+  Settings,
   Users,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
@@ -32,7 +33,8 @@ const nav = [
   { name: 'overview', key: 'nav.overview', icon: LayoutDashboard },
   { name: 'instances', key: 'nav.instances', icon: Server },
   { name: 'users', key: 'nav.users', icon: Users },
-  { name: 'api-key', key: 'nav.apiKey', icon: KeyRound },
+  { name: 'settings', key: 'nav.settings', icon: Settings },
+  { name: 'help', key: 'nav.help', icon: HelpCircle },
 ]
 
 async function onLogout() {
@@ -42,9 +44,9 @@ async function onLogout() {
 </script>
 
 <template>
-  <div class="flex min-h-screen bg-muted/30">
+  <div class="flex h-screen overflow-hidden bg-muted/30">
     <aside
-      class="hidden flex-col border-r bg-card transition-[width] duration-200 md:flex"
+      class="hidden shrink-0 flex-col overflow-y-auto border-r bg-card transition-[width] duration-200 md:flex"
       :class="collapsed ? 'w-16' : 'w-56'"
     >
       <div
@@ -81,8 +83,8 @@ async function onLogout() {
       </div>
     </aside>
 
-    <div class="flex flex-1 flex-col">
-      <header class="flex h-14 items-center gap-3 border-b bg-card px-4">
+    <div class="flex min-w-0 flex-1 flex-col">
+      <header class="flex h-14 shrink-0 items-center gap-3 border-b bg-card px-4">
         <Button
           variant="ghost"
           size="icon"
@@ -101,7 +103,7 @@ async function onLogout() {
           </Button>
         </div>
       </header>
-      <main class="flex-1 p-4 md:p-6">
+      <main class="flex-1 overflow-y-auto p-4 md:p-6">
         <RouterView />
       </main>
     </div>
