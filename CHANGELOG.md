@@ -5,15 +5,15 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.5](https://github.com/PedroL3m0z/Flux-Api/compare/v0.1.4...v0.1.5) (2026-06-18)
-
+## [Unreleased]
 
 ### Features
 
-* **client:** show release version in sidebar ([26c87f0](https://github.com/PedroL3m0z/Flux-Api/commit/26c87f06c843c82e58a3db8dfe658139d53aecd6))
-* **core:** telegram client + redis session store ([758a538](https://github.com/PedroL3m0z/Flux-Api/commit/758a538b39b8e5f2ac8b4954024c6e76aebda2dc))
-* **dashboard:** redirect / to /dashboard ([8714a90](https://github.com/PedroL3m0z/Flux-Api/commit/8714a9082fc6eda2da1a5e9b59f97e482252be48))
-* **telegram:** instance management, QR login, message sync & dashboard ([4f1c0f3](https://github.com/PedroL3m0z/Flux-Api/commit/4f1c0f3bb1af672aa6c50525e488dfdbe69e663f))
+* **authz:** role-based access control with a global role (`admin`/`member`) and per-instance roles (`owner`/`operator`/`viewer`); `InstanceAccessGuard` + `@RequireInstancePermission` for instance-scoped routes and `RolesGuard` + `@Roles` for global ones. Adds instance member management (`/telegram/instances/:id/members`), global role updates (`PATCH /users/:id/role`), `myRole` on instance responses and `webhook:manage` enforcement on instance links.
+* **telegram:** media send/download (photo/video/document + avatars), cursor-paginated history, API-key gate and UI polish.
+* **events:** engine-agnostic event system over an in-process bus (`session.status`, `message.new`/`edited`/`deleted`/`read`/`reaction`); engine `onEvent` replaces `onMessage`.
+* **webhooks:** configurable webhooks with M2M instance links — Postgres outbox delivery worker with HMAC-SHA256 signing, retry/backoff and a persisted delivery log; full HTTP API (CRUD, link/unlink, secret rotation, deliveries, resend) and a dashboard section.
+* **docs:** end-to-end README (architecture, engines, events, webhooks, types) and full OpenAPI/Scalar coverage — response entities, tag descriptions and operation docs across all controllers.
 
 ## [0.1.4](https://github.com/PedroL3m0z/Flux-Api/compare/v0.1.3...v0.1.4) (2026-06-17)
 

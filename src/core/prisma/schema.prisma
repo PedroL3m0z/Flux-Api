@@ -11,15 +11,29 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  admin
+  member
+}
+
+enum InstanceRole {
+  owner
+  operator
+  viewer
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   username  String   @unique
   password  String
+  role      Role     @default(member)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  instances Instance[]
+  instances   Instance[]
+  webhooks    Webhook[]
+  memberships InstanceMember[]
 
   @@map("users")
 }
@@ -68,17 +82,34 @@ model Instance {
   apiId      Int?
   apiHashEnc String?
   tgUserId   BigInt?
+  firstName  String?
   username   String?
   phone      String?
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
 
-  chats    Chat[]
-  contacts Contact[]
-  messages Message[]
+  chats        Chat[]
+  contacts     Contact[]
+  messages     Message[]
+  webhookLinks WebhookInstance[]
+  members      InstanceMember[]
 
   @@index([ownerId])
   @@map("telegram_instances")
+}
+
+model InstanceMember {
+  instanceId String
+  instance   Instance     @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       InstanceRole @default(viewer)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@id([instanceId, userId])
+  @@index([userId])
+  @@map("instance_members")
 }
 
 model Contact {
@@ -91,6 +122,7 @@ model Contact {
   lastName   String?
   username   String?
   phone      String?
+  hasPhoto   Boolean  @default(false)
   isContact  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -110,6 +142,7 @@ model Chat {
   accessHash    BigInt?
   title         String?
   username      String?
+  hasPhoto      Boolean   @default(false)
   lastMessageAt DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -142,4 +175,62 @@ model Message {
   @@unique([instanceId, chatId, tgMessageId])
   @@index([chatId, date])
   @@map("telegram_messages")
+}
+
+enum WebhookStatus {
+  pending
+  success
+  failed
+  dead
+}
+
+model Webhook {
+  id        String   @id @default(uuid())
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name      String
+  url       String
+  secret    String
+  active    Boolean  @default(true)
+  events    String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  instances  WebhookInstance[]
+  deliveries WebhookDelivery[]
+
+  @@index([ownerId])
+  @@map("webhooks")
+}
+
+model WebhookInstance {
+  webhookId  String
+  webhook    Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  instanceId String
+  instance   Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([webhookId, instanceId])
+  @@index([instanceId])
+  @@map("webhook_instances")
+}
+
+model WebhookDelivery {
+  id            String        @id @default(uuid())
+  webhookId     String
+  webhook       Webhook       @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  instanceId    String?
+  event         String
+  status        WebhookStatus @default(pending)
+  attempts      Int           @default(0)
+  statusCode    Int?
+  lastError     String?
+  payload       Json
+  nextAttemptAt DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  deliveredAt   DateTime?
+
+  @@index([status, nextAttemptAt])
+  @@index([webhookId, createdAt])
+  @@map("webhook_deliveries")
 }

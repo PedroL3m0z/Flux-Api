@@ -3,9 +3,11 @@ import { Observable, Subject, filter, map } from 'rxjs';
 import { ChatsService } from './chats.service';
 import { ContactsService } from './contacts.service';
 import { MessagesService } from './messages.service';
+import { TelegramEventBus } from './telegram-events.service';
 import type {
   DialogSnapshot,
   EngineClient,
+  NormalizedEvent,
   NormalizedMessage,
 } from '../engines/engine.types';
 import type { MessageView, StreamMessage } from '../views';
@@ -31,6 +33,7 @@ export class TelegramSyncService {
     private readonly chats: ChatsService,
     private readonly contacts: ContactsService,
     private readonly messages: MessagesService,
+    private readonly events: TelegramEventBus,
   ) {}
 
   /** Realtime stream of messages ingested for an instance. */
@@ -60,16 +63,49 @@ export class TelegramSyncService {
     instanceId: string,
     message: NormalizedMessage,
   ): Promise<MessageView | undefined> {
+    const view = await this.persist(instanceId, message);
+    if (view) {
+      this.incoming.next({ instanceId, message: view });
+    }
+    return view;
+  }
+
+  /** Persists a message (chat + message upsert) without streaming it. */
+  private async persist(
+    instanceId: string,
+    message: NormalizedMessage,
+  ): Promise<MessageView | undefined> {
     try {
       const chatId = await this.chats.upsert(instanceId, message.chat);
-      const view = await this.persistMessage(instanceId, chatId, message);
-      this.incoming.next({ instanceId, message: view });
-      return view;
+      return await this.persistMessage(instanceId, chatId, message);
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'unknown error';
-      this.logger.error(`Ingest failed for ${instanceId}: ${reason}`);
+      this.logger.error(`Persist failed for ${instanceId}: ${reason}`);
       return undefined;
     }
+  }
+
+  /**
+   * Persists a batch of historical messages for a known chat without emitting
+   * them on the realtime stream. Used for on-demand history backfill.
+   * Returns how many were persisted.
+   */
+  async ingestHistory(
+    instanceId: string,
+    chatId: string,
+    messages: NormalizedMessage[],
+  ): Promise<number> {
+    let count = 0;
+    for (const message of messages) {
+      try {
+        await this.persistMessage(instanceId, chatId, message);
+        count++;
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : 'unknown error';
+        this.logger.warn(`History ingest skipped for ${instanceId}: ${reason}`);
+      }
+    }
+    return count;
   }
 
   /** Stops the realtime subscription for an instance (on disconnect/remove). */
@@ -96,14 +132,82 @@ export class TelegramSyncService {
   }
 
   private registerRealtime(instanceId: string, client: EngineClient): void {
-    if (!client.onMessage) {
+    if (!client.onEvent) {
       return;
     }
     this.stop(instanceId);
-    const unsub = client.onMessage((message) => {
-      void this.ingest(instanceId, message);
+    const unsub = client.onEvent((event) => {
+      void this.handleEvent(instanceId, event);
     });
     this.unsubscribers.set(instanceId, unsub);
+  }
+
+  /** Routes a realtime engine event: persists messages, fans all out to the bus. */
+  private async handleEvent(
+    instanceId: string,
+    event: NormalizedEvent,
+  ): Promise<void> {
+    try {
+      switch (event.type) {
+        case 'message.new': {
+          const view = await this.ingest(instanceId, event.message);
+          if (view) {
+            this.events.publish({
+              instanceId,
+              type: 'message.new',
+              payload: { message: view },
+            });
+          }
+          break;
+        }
+        case 'message.edited': {
+          const view = await this.persist(instanceId, event.message);
+          if (view) {
+            this.events.publish({
+              instanceId,
+              type: 'message.edited',
+              payload: { message: view },
+            });
+          }
+          break;
+        }
+        case 'message.deleted':
+          this.events.publish({
+            instanceId,
+            type: 'message.deleted',
+            payload: {
+              chat: event.chat,
+              tgMessageIds: event.tgMessageIds,
+            },
+          });
+          break;
+        case 'message.read':
+          this.events.publish({
+            instanceId,
+            type: 'message.read',
+            payload: {
+              chat: event.chat,
+              maxId: event.maxId,
+              direction: event.direction,
+            },
+          });
+          break;
+        case 'message.reaction':
+          this.events.publish({
+            instanceId,
+            type: 'message.reaction',
+            payload: {
+              chat: event.chat,
+              tgMessageId: event.tgMessageId,
+              reactions: event.reactions,
+            },
+          });
+          break;
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'unknown error';
+      this.logger.error(`Event handling failed for ${instanceId}: ${reason}`);
+    }
   }
 
   private async ingestDialog(
@@ -136,6 +240,19 @@ export class TelegramSyncService {
     );
     const date = new Date(message.date * 1000);
     await this.chats.touch(chatId, date);
+    const contact = message.sender;
+    const sender =
+      senderId && contact
+        ? {
+            id: senderId,
+            name:
+              [contact.firstName, contact.lastName].filter(Boolean).join(' ') ||
+              contact.username ||
+              undefined,
+            username: contact.username,
+            hasPhoto: contact.hasPhoto ?? false,
+          }
+        : undefined;
     return {
       id,
       chatId,
@@ -144,6 +261,17 @@ export class TelegramSyncService {
       outgoing: message.outgoing,
       date: date.toISOString(),
       senderId: senderId ?? undefined,
+      sender,
+      media: message.media
+        ? {
+            type: message.media.type,
+            mimeType: message.media.mimeType,
+            fileName: message.media.fileName,
+            width: message.media.width,
+            height: message.media.height,
+            duration: message.media.duration,
+          }
+        : undefined,
     };
   }
 }

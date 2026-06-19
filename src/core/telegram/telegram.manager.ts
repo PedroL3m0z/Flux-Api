@@ -15,6 +15,8 @@ import { InstancesService } from './services/instances.service';
 import { SettingsService } from './services/settings.service';
 import { TelegramSessionStore } from './telegram-session.store';
 import { TelegramSyncService } from './services/telegram-sync.service';
+import { TelegramEventBus } from './services/telegram-events.service';
+import type { InstanceStatus } from './telegram.constants';
 import type { EngineConfig } from './engines/engine.types';
 import type { TelegramInstance } from './telegram.constants';
 
@@ -47,6 +49,7 @@ export class TelegramManager
 {
   private readonly logger = new Logger(TelegramManager.name);
   private readonly clients = new Map<string, EngineClient>();
+  private readonly connectedAt = new Map<string, number>();
   private readonly pendingPasswords = new Map<string, (pwd: string) => void>();
 
   constructor(
@@ -55,7 +58,21 @@ export class TelegramManager
     private readonly settings: SettingsService,
     private readonly session: TelegramSessionStore,
     private readonly sync: TelegramSyncService,
+    private readonly events: TelegramEventBus,
   ) {}
+
+  /** Publishes a session lifecycle event for webhooks/realtime consumers. */
+  private publishStatus(
+    instanceId: string,
+    status: InstanceStatus,
+    extra: Record<string, unknown> = {},
+  ): void {
+    this.events.publish({
+      instanceId,
+      type: 'session.status',
+      payload: { status, ...extra },
+    });
+  }
 
   /** Credentials for an instance: global settings, overridden per-instance. */
   private async resolveConfig(id: string): Promise<EngineConfig> {
@@ -101,6 +118,7 @@ export class TelegramManager
       ),
     );
     this.clients.clear();
+    this.connectedAt.clear();
   }
 
   // --- Instance management ---
@@ -123,12 +141,7 @@ export class TelegramManager
   }
 
   async removeInstance(id: string): Promise<void> {
-    this.sync.stop(id);
-    const client = this.clients.get(id);
-    if (client) {
-      await client.disconnect().catch(() => undefined);
-      this.clients.delete(id);
-    }
+    await this.detach(id);
     await this.instances.remove(id);
     await this.session.deleteSession(id);
   }
@@ -140,6 +153,61 @@ export class TelegramManager
   /** Number of instances with a live connected client. */
   connectedCount(): number {
     return this.clients.size;
+  }
+
+  /** Tracks a live client and the moment it connected (for uptime). */
+  private attach(id: string, client: EngineClient): void {
+    this.clients.set(id, client);
+    this.connectedAt.set(id, Date.now());
+  }
+
+  /** Drops a live client and its connection timestamp. */
+  private async detach(id: string): Promise<void> {
+    this.sync.stop(id);
+    const client = this.clients.get(id);
+    if (client) {
+      await client.disconnect().catch(() => undefined);
+      this.clients.delete(id);
+    }
+    this.connectedAt.delete(id);
+  }
+
+  /** Stops a running instance, keeping its saved session for a later start. */
+  async stopInstance(id: string): Promise<void> {
+    await this.detach(id);
+    await this.instances.update(id, { status: 'disconnected' });
+    this.publishStatus(id, 'disconnected');
+  }
+
+  /** (Re)connects an instance from its saved session. No-op if already live. */
+  async startInstance(id: string): Promise<TelegramInstance | null> {
+    const instance = await this.instances.get(id);
+    if (!instance) {
+      return null;
+    }
+    if (!this.clients.has(id)) {
+      await this.restore(instance);
+    }
+    return this.instances.get(id);
+  }
+
+  /** Public view plus live connection state and uptime, for the info panel. */
+  async instanceInfo(
+    id: string,
+  ): Promise<
+    | (TelegramInstance & { connected: boolean; uptimeSeconds: number | null })
+    | null
+  > {
+    const instance = await this.instances.get(id);
+    if (!instance) {
+      return null;
+    }
+    const since = this.connectedAt.get(id);
+    return {
+      ...instance,
+      connected: this.clients.has(id),
+      uptimeSeconds: since ? Math.floor((Date.now() - since) / 1000) : null,
+    };
   }
 
   async instancesSummary(): Promise<InstancesSummary> {
@@ -218,18 +286,25 @@ export class TelegramManager
       });
 
       await this.session.saveSession(id, client.saveSession());
-      this.clients.set(id, client);
+      this.attach(id, client);
       await this.instances.update(id, {
         status: 'authorized',
+        firstName: me.firstName,
         username: me.username,
+        phone: me.phone,
       });
       subject.next({ type: 'authorized', me });
+      this.publishStatus(id, 'authorized', {
+        username: me.username,
+        phone: me.phone,
+      });
       void this.sync.onAuthorized(id, client);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown error';
       await this.instances.update(id, { status: 'error' });
       await client?.disconnect().catch(() => undefined);
       subject.next({ type: 'error', message });
+      this.publishStatus(id, 'error', { message });
     } finally {
       this.pendingPasswords.delete(id);
       subject.complete();
@@ -258,10 +333,19 @@ export class TelegramManager
       const config = await this.resolveConfig(instance.id);
       const client = await engine.connect(session, config);
       const authorized = await client.isAuthorized();
-      this.clients.set(instance.id, client);
+      this.attach(instance.id, client);
+      const me = authorized ? await client.getMe().catch(() => null) : null;
       await this.instances.update(instance.id, {
         status: authorized ? 'authorized' : 'disconnected',
+        firstName: me?.firstName,
+        username: me?.username,
+        phone: me?.phone,
       });
+      this.publishStatus(
+        instance.id,
+        authorized ? 'authorized' : 'disconnected',
+        { username: me?.username, phone: me?.phone },
+      );
       if (authorized) {
         void this.sync.onAuthorized(instance.id, client);
       }
@@ -271,6 +355,7 @@ export class TelegramManager
         `Failed to restore instance ${instance.id}: ${message}`,
       );
       await this.instances.update(instance.id, { status: 'error' });
+      this.publishStatus(instance.id, 'error', { message });
     }
   }
 }

@@ -8,43 +8,103 @@ import {
   HttpStatus,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Put,
   Query,
+  Res,
   ServiceUnavailableException,
   Sse,
+  StreamableFile,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
   type MessageEvent,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiProduces,
+  ApiQuery,
+  ApiSecurity,
+  ApiServiceUnavailableResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import type { Response } from 'express';
 import { map, type Observable } from 'rxjs';
+import type { MediaBlob } from '../../core/telegram/engines/engine.types';
+import { SendMediaDto } from './dto/send-media.dto';
+
+/** Minimal shape of a Multer in-memory upload (avoids global type augmentation). */
+interface UploadedFileLike {
+  buffer: Buffer;
+  originalname: string;
+  mimetype: string;
+}
 import { TelegramManager } from '../../core/telegram/telegram.manager';
 import { SettingsService } from '../../core/telegram/services/settings.service';
+import { InstanceAccessService } from '../../core/telegram/services/instance-access.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RequireInstancePermission } from '../../common/authz/require-instance-permission.decorator';
+import { InstanceAccessGuard } from '../../common/authz/instance-access.guard';
 import type { SafeUser } from '../auth/auth.service';
+import { AddMemberDto } from './dto/add-member.dto';
 import { CreateInstanceDto } from './dto/create-instance.dto';
 import { PasswordDto } from './dto/password.dto';
 import { SendMessageDto } from './dto/send-message.dto';
+import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
+import { InstanceMemberEntity } from './entities/member.entity';
+import {
+  ChatEntity,
+  InstanceEntity,
+  InstanceInfoEntity,
+  MessageEntity,
+  StatsEntity,
+  TelegramSettingsEntity,
+} from './entities/telegram.entity';
+import { OkResponseEntity } from '../auth/entities/auth.entity';
 import { MessagingService } from './messaging.service';
 
 @ApiTags('telegram')
 @ApiBearerAuth()
+@ApiSecurity('api-key')
+@ApiForbiddenResponse({
+  description: 'Caller lacks the required permission on this instance.',
+})
+@ApiServiceUnavailableResponse({
+  description:
+    'Telegram integration is disabled (TELEGRAM_API_ID / TELEGRAM_API_HASH not set).',
+})
+@UseGuards(InstanceAccessGuard)
 @Controller('telegram')
 export class TelegramController {
   constructor(
     private readonly telegram: TelegramManager,
     private readonly messaging: MessagingService,
     private readonly settings: SettingsService,
+    private readonly access: InstanceAccessService,
   ) {}
 
   @Get('settings')
   @ApiOperation({ summary: 'Get global Telegram settings (api_hash hidden)' })
+  @ApiOkResponse({ type: TelegramSettingsEntity })
   getSettings() {
     return this.settings.getTelegramView();
   }
 
   @Put('settings')
   @ApiOperation({ summary: 'Set global Telegram api_id / api_hash' })
+  @ApiOkResponse({ type: TelegramSettingsEntity })
   updateSettings(@Body() dto: UpdateSettingsDto) {
     return this.settings.setTelegram(dto);
   }
@@ -53,6 +113,7 @@ export class TelegramController {
   @ApiOperation({
     summary: 'System uptime and instance health for the overview',
   })
+  @ApiOkResponse({ type: StatsEntity })
   async stats() {
     const instances = await this.telegram.listInstances();
     const authorized = instances.filter(
@@ -77,8 +138,13 @@ export class TelegramController {
   }
 
   @Post('instances')
-  @ApiOperation({ summary: 'Create a Telegram instance' })
-  createInstance(
+  @ApiOperation({
+    summary: 'Create a Telegram instance',
+    description:
+      'Registers a new instance for the current user. Engine defaults to gramjs; per-instance api_id/api_hash override the global settings.',
+  })
+  @ApiCreatedResponse({ type: InstanceEntity })
+  async createInstance(
     @CurrentUser() user: SafeUser,
     @Body() dto: CreateInstanceDto,
   ) {
@@ -86,42 +152,110 @@ export class TelegramController {
     if (dto.engine && !this.telegram.isEngineAvailable(dto.engine)) {
       throw new BadRequestException(`Engine "${dto.engine}" is not available`);
     }
-    return this.telegram.createInstance(user.id, dto.label, dto.engine, {
-      apiId: dto.apiId,
-      apiHash: dto.apiHash,
-    });
+    const instance = await this.telegram.createInstance(
+      user.id,
+      dto.label,
+      dto.engine,
+      { apiId: dto.apiId, apiHash: dto.apiHash },
+    );
+    await this.access.grantOwner(instance.id, user.id);
+    return { ...instance, myRole: 'owner' as const };
   }
 
   @Get('instances')
   @ApiOperation({ summary: 'List Telegram instances' })
-  listInstances() {
+  @ApiOkResponse({ type: [InstanceEntity] })
+  async listInstances(@CurrentUser() user: SafeUser) {
     this.ensureEnabled();
-    return this.telegram.listInstances();
+    const instances = await this.telegram.listInstances();
+    const roles = await this.access.rolesFor(
+      user,
+      instances.map((i) => i.id),
+    );
+    return instances.map((i) => ({ ...i, myRole: roles.get(i.id) }));
   }
 
   @Get('instances/:id')
+  @RequireInstancePermission('instance:read')
   @ApiOperation({ summary: 'Get a Telegram instance' })
-  async getInstance(@Param('id') id: string) {
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiOkResponse({ type: InstanceEntity })
+  @ApiNotFoundResponse({ description: 'Instance not found' })
+  async getInstance(@CurrentUser() user: SafeUser, @Param('id') id: string) {
     this.ensureEnabled();
     const instance = await this.telegram.getInstance(id);
+    if (!instance) {
+      throw new NotFoundException('Instance not found');
+    }
+    const access = await this.access.resolve(user, id);
+    return { ...instance, myRole: access.role };
+  }
+
+  @Delete('instances/:id')
+  @RequireInstancePermission('instance:delete')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a Telegram instance (and its session)' })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiNoContentResponse({ description: 'Deleted' })
+  async removeInstance(@Param('id') id: string) {
+    this.ensureEnabled();
+    await this.telegram.removeInstance(id);
+  }
+
+  @Get('instances/:id/info')
+  @RequireInstancePermission('instance:read')
+  @ApiOperation({
+    summary: 'Instance details + live connection state and uptime',
+  })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiOkResponse({ type: InstanceInfoEntity })
+  @ApiNotFoundResponse({ description: 'Instance not found' })
+  async instanceInfo(@Param('id') id: string) {
+    this.ensureEnabled();
+    const info = await this.telegram.instanceInfo(id);
+    if (!info) {
+      throw new NotFoundException('Instance not found');
+    }
+    return info;
+  }
+
+  @Post('instances/:id/start')
+  @RequireInstancePermission('instance:manage')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Connect an instance from its saved session' })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiOkResponse({ type: InstanceEntity })
+  @ApiNotFoundResponse({ description: 'Instance not found' })
+  async startInstance(@Param('id') id: string) {
+    this.ensureEnabled();
+    const instance = await this.telegram.startInstance(id);
     if (!instance) {
       throw new NotFoundException('Instance not found');
     }
     return instance;
   }
 
-  @Delete('instances/:id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete a Telegram instance (and its session)' })
-  async removeInstance(@Param('id') id: string) {
+  @Post('instances/:id/stop')
+  @RequireInstancePermission('instance:manage')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Disconnect an instance (keeps its session)' })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiOkResponse({ type: OkResponseEntity })
+  async stopInstance(@Param('id') id: string) {
     this.ensureEnabled();
-    await this.telegram.removeInstance(id);
+    await this.telegram.stopInstance(id);
+    return { ok: true };
   }
 
   @Sse('instances/:id/login/qr')
+  @RequireInstancePermission('instance:manage')
   @ApiOperation({
     summary: 'Stream a QR login (SSE): qr → password_required → authorized',
+    description:
+      'Server-Sent Events stream. Emits a QR url to scan, then `password_required` if 2FA is on, then `authorized` with the account identity.',
   })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiProduces('text/event-stream')
   qrLogin(@Param('id') id: string): Observable<MessageEvent> {
     this.ensureEnabled();
     return this.telegram
@@ -130,8 +264,11 @@ export class TelegramController {
   }
 
   @Post('instances/:id/login/password')
+  @RequireInstancePermission('instance:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Submit the 2FA password for a pending QR login' })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiOkResponse({ type: OkResponseEntity })
   submitPassword(@Param('id') id: string, @Body() dto: PasswordDto) {
     this.ensureEnabled();
     const accepted = this.telegram.submitPassword(id, dto.password);
@@ -144,14 +281,35 @@ export class TelegramController {
   }
 
   @Get('instances/:id/chats')
+  @RequireInstancePermission('chat:read')
   @ApiOperation({ summary: 'List an instance chats (most recent first)' })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiOkResponse({ type: [ChatEntity] })
   listChats(@Param('id') id: string) {
     this.ensureEnabled();
     return this.messaging.listChats(id);
   }
 
   @Get('instances/:id/chats/:chatId/messages')
-  @ApiOperation({ summary: 'List messages of a chat (cursor-paginated)' })
+  @RequireInstancePermission('message:read')
+  @ApiOperation({
+    summary: 'List messages of a chat (cursor-paginated)',
+    description:
+      'Returns messages newest-first. Pass the oldest returned message id as `cursor` to page backwards through history.',
+  })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiParam({ name: 'chatId', description: 'Chat id' })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    description: 'Message id to page before (older than)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Page size (default server-side)',
+  })
+  @ApiOkResponse({ type: [MessageEntity] })
   listMessages(
     @Param('id') id: string,
     @Param('chatId') chatId: string,
@@ -166,7 +324,11 @@ export class TelegramController {
   }
 
   @Post('instances/:id/chats/:chatId/messages')
-  @ApiOperation({ summary: 'Send a message to a chat' })
+  @RequireInstancePermission('message:send')
+  @ApiOperation({ summary: 'Send a text message to a chat' })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiParam({ name: 'chatId', description: 'Chat id' })
+  @ApiCreatedResponse({ type: MessageEntity })
   sendMessage(
     @Param('id') id: string,
     @Param('chatId') chatId: string,
@@ -176,12 +338,192 @@ export class TelegramController {
     return this.messaging.send(id, chatId, dto.text);
   }
 
+  @Post('instances/:id/chats/:chatId/media')
+  @RequireInstancePermission('media:send')
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        caption: { type: 'string' },
+      },
+    },
+  })
+  @ApiOperation({
+    summary: 'Send a photo/video/document to a chat',
+    description:
+      'multipart/form-data upload (max 50 MB). `file` is required; `caption` is optional.',
+  })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiParam({ name: 'chatId', description: 'Chat id' })
+  @ApiCreatedResponse({ type: MessageEntity })
+  sendMedia(
+    @Param('id') id: string,
+    @Param('chatId') chatId: string,
+    @UploadedFile() file: UploadedFileLike | undefined,
+    @Body() dto: SendMediaDto,
+  ) {
+    this.ensureEnabled();
+    if (!file) {
+      throw new BadRequestException('A file is required');
+    }
+    return this.messaging.sendMedia(
+      id,
+      chatId,
+      {
+        data: file.buffer,
+        fileName: file.originalname,
+        mimeType: file.mimetype,
+      },
+      dto.caption,
+    );
+  }
+
   @Sse('instances/:id/messages/stream')
-  @ApiOperation({ summary: 'Stream newly ingested messages (SSE)' })
+  @RequireInstancePermission('message:read')
+  @ApiOperation({
+    summary: 'Stream newly ingested messages (SSE)',
+    description:
+      'Server-Sent Events stream that pushes each new message as it is persisted, in MessageView shape.',
+  })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiProduces('text/event-stream')
   messageStream(@Param('id') id: string): Observable<MessageEvent> {
     this.ensureEnabled();
     return this.messaging
       .stream(id)
       .pipe(map((message): MessageEvent => ({ data: message })));
+  }
+
+  @Get('instances/:id/chats/:chatId/photo')
+  @RequireInstancePermission('chat:read')
+  @ApiOperation({ summary: 'Chat / group / contact avatar (image bytes)' })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiParam({ name: 'chatId', description: 'Chat id' })
+  @ApiProduces('image/jpeg', 'application/octet-stream')
+  @ApiOkResponse({ schema: { type: 'string', format: 'binary' } })
+  @ApiNotFoundResponse({ description: 'No avatar available' })
+  async chatPhoto(
+    @Param('id') id: string,
+    @Param('chatId') chatId: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    this.ensureEnabled();
+    return this.streamBlob(res, await this.messaging.chatPhoto(id, chatId));
+  }
+
+  @Get('instances/:id/contacts/:contactId/photo')
+  @RequireInstancePermission('chat:read')
+  @ApiOperation({ summary: 'Contact avatar (image bytes)' })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiParam({ name: 'contactId', description: 'Contact id' })
+  @ApiProduces('image/jpeg', 'application/octet-stream')
+  @ApiOkResponse({ schema: { type: 'string', format: 'binary' } })
+  @ApiNotFoundResponse({ description: 'No avatar available' })
+  async contactPhoto(
+    @Param('id') id: string,
+    @Param('contactId') contactId: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    this.ensureEnabled();
+    return this.streamBlob(
+      res,
+      await this.messaging.contactPhoto(id, contactId),
+    );
+  }
+
+  @Get('instances/:id/chats/:chatId/messages/:messageId/media')
+  @RequireInstancePermission('message:read')
+  @ApiOperation({
+    summary: 'Message attachment (raw bytes, downloaded lazily)',
+  })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiParam({ name: 'chatId', description: 'Chat id' })
+  @ApiParam({ name: 'messageId', description: 'Message id' })
+  @ApiProduces('application/octet-stream')
+  @ApiOkResponse({ schema: { type: 'string', format: 'binary' } })
+  @ApiNotFoundResponse({ description: 'Media not available' })
+  async messageMedia(
+    @Param('id') id: string,
+    @Param('chatId') chatId: string,
+    @Param('messageId') messageId: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    this.ensureEnabled();
+    return this.streamBlob(
+      res,
+      await this.messaging.messageMedia(id, chatId, messageId),
+    );
+  }
+
+  // --- Members (per-instance access) ---
+
+  @Get('instances/:id/members')
+  @RequireInstancePermission('member:read')
+  @ApiOperation({ summary: 'List users with access to an instance' })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiOkResponse({ type: [InstanceMemberEntity] })
+  listMembers(@Param('id') id: string) {
+    this.ensureEnabled();
+    return this.access.listMembers(id);
+  }
+
+  @Post('instances/:id/members')
+  @RequireInstancePermission('member:manage')
+  @ApiOperation({
+    summary: 'Grant a user access to an instance (owner/operator/viewer)',
+  })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiCreatedResponse({ type: InstanceMemberEntity })
+  addMember(@Param('id') id: string, @Body() dto: AddMemberDto) {
+    this.ensureEnabled();
+    return this.access.addMember(id, dto.userId, dto.role);
+  }
+
+  @Patch('instances/:id/members/:userId')
+  @RequireInstancePermission('member:manage')
+  @ApiOperation({ summary: "Change a member's role on an instance" })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiParam({ name: 'userId', description: 'Member user id' })
+  @ApiOkResponse({ type: InstanceMemberEntity })
+  setMemberRole(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @Body() dto: UpdateMemberRoleDto,
+  ) {
+    this.ensureEnabled();
+    return this.access.setMemberRole(id, userId, dto.role);
+  }
+
+  @Delete('instances/:id/members/:userId')
+  @RequireInstancePermission('member:manage')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Revoke a user’s access to an instance' })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiParam({ name: 'userId', description: 'Member user id' })
+  @ApiNoContentResponse({ description: 'Removed' })
+  async removeMember(@Param('id') id: string, @Param('userId') userId: string) {
+    this.ensureEnabled();
+    await this.access.removeMember(id, userId);
+  }
+
+  /** Streams downloaded bytes with the right headers, or 404 when absent. */
+  private streamBlob(res: Response, blob: MediaBlob | null): StreamableFile {
+    if (!blob) {
+      throw new NotFoundException('Media not available');
+    }
+    res.setHeader('Content-Type', blob.mimeType);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    if (blob.fileName) {
+      res.setHeader(
+        'Content-Disposition',
+        `inline; filename="${blob.fileName.replace(/"/g, '')}"`,
+      );
+    }
+    return new StreamableFile(blob.data);
   }
 }

@@ -1,11 +1,22 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '../../prisma/generated/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { NormalizedMessage } from '../engines/engine.types';
-import type { MessageView } from '../views';
+import type { MessageSenderView, MessageView } from '../views';
 
 export interface MessagePage {
   items: MessageView[];
   nextCursor: string | null;
+}
+
+/** Builds a sender display name from its parts. */
+function senderName(
+  firstName?: string | null,
+  lastName?: string | null,
+  username?: string | null,
+): string | undefined {
+  const full = [firstName, lastName].filter(Boolean).join(' ');
+  return full || username || undefined;
 }
 
 @Injectable()
@@ -32,6 +43,10 @@ export class MessagesService {
         senderId,
         outgoing: msg.outgoing,
         text: msg.text,
+        mediaType: msg.media?.type ?? 'none',
+        mediaRef: msg.media
+          ? (msg.media as unknown as Prisma.InputJsonValue)
+          : undefined,
         date,
         replyToTgId: msg.replyToTgId ? BigInt(msg.replyToTgId) : null,
       },
@@ -53,17 +68,48 @@ export class MessagesService {
       orderBy: { date: 'desc' },
       take: take + 1,
       ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
+      include: {
+        sender: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            username: true,
+            hasPhoto: true,
+          },
+        },
+      },
     });
     const hasMore = rows.length > take;
-    const items = rows.slice(0, take).map((row) => ({
-      id: row.id,
-      chatId: row.chatId,
-      tgMessageId: row.tgMessageId.toString(),
-      text: row.text ?? undefined,
-      outgoing: row.outgoing,
-      date: row.date.toISOString(),
-      senderId: row.senderId ?? undefined,
-    }));
+    const items = rows.slice(0, take).map((row): MessageView => {
+      const sender: MessageSenderView | undefined = row.sender
+        ? {
+            id: row.sender.id,
+            name: senderName(
+              row.sender.firstName,
+              row.sender.lastName,
+              row.sender.username,
+            ),
+            username: row.sender.username ?? undefined,
+            hasPhoto: row.sender.hasPhoto,
+          }
+        : undefined;
+      const media =
+        row.mediaType !== 'none'
+          ? { type: row.mediaType, ...((row.mediaRef as object) ?? {}) }
+          : undefined;
+      return {
+        id: row.id,
+        chatId: row.chatId,
+        tgMessageId: row.tgMessageId.toString(),
+        text: row.text ?? undefined,
+        outgoing: row.outgoing,
+        date: row.date.toISOString(),
+        senderId: row.senderId ?? undefined,
+        sender,
+        media: media,
+      };
+    });
     return {
       items,
       nextCursor: hasMore ? (items[items.length - 1]?.id ?? null) : null,

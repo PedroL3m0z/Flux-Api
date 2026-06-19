@@ -55,15 +55,54 @@ async function bootstrap() {
   );
 
   // --- OpenAPI document ---
+  const apiDescription = [
+    'HTTP gateway that runs Telegram accounts as **instances** and exposes them',
+    'over a clean REST API, an SSE realtime stream, and outbound **webhooks**.',
+    '',
+    '### Authentication',
+    'Two layers protect the API:',
+    '- **JWT (bearer / httpOnly cookie)** — identifies the dashboard user. Obtain it via `POST /auth/login`.',
+    `- **API key (\`${API_KEY_HEADER}\` header)** — a static gateway key required on most routes (auth and health are exempt).`,
+    '',
+    'int64 Telegram ids are serialized as **strings**; dates are ISO-8601.',
+    '',
+    '### Events',
+    'Instances emit normalized events: `session.status`, `message.new`, `message.edited`,',
+    '`message.deleted`, `message.read` (seen receipts) and `message.reaction`.',
+    '',
+    '### Webhooks',
+    'Subscribe a webhook to a subset of event types and link it to one or more instances.',
+    'Each delivery is POSTed with an HMAC-SHA256 signature in `X-Flux-Signature: sha256=<hex>`',
+    '(verify it with the secret returned once at create/rotate), retried with backoff,',
+    'and recorded in a queryable delivery log.',
+  ].join('\n');
+
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Flux API')
-    .setDescription('Flux API — HTTP gateway for Telegram')
+    .setDescription(apiDescription)
     .setVersion('1.0')
-    .addBearerAuth()
+    .setContact('Pedro Lemos', 'https://github.com/PedroL3m0z', '')
+    .setLicense('Apache-2.0', 'https://www.apache.org/licenses/LICENSE-2.0')
+    .setExternalDoc('Source code', 'https://github.com/PedroL3m0z/Flux-Api')
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      'bearer',
+    )
     .addApiKey(
       { type: 'apiKey', name: API_KEY_HEADER, in: 'header' },
       'api-key',
     )
+    .addTag('auth', 'Login, current user, registration and API-key checks')
+    .addTag('users', 'Dashboard user accounts')
+    .addTag(
+      'telegram',
+      'Instances, QR/2FA login, chats, messages, media and realtime streams',
+    )
+    .addTag(
+      'webhooks',
+      'Outbound HTTP callbacks: subscriptions, instance links, signing and delivery log',
+    )
+    .addTag('health', 'Service health checks')
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
 

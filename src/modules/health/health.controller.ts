@@ -4,7 +4,7 @@ import {
   HealthCheckService,
   MemoryHealthIndicator,
 } from '@nestjs/terminus';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
 import { PrismaHealthIndicator } from './prisma.health';
@@ -26,6 +26,21 @@ export class HealthController {
   @Public()
   @SkipThrottle()
   @HealthCheck()
+  @ApiOperation({
+    summary: 'Liveness/readiness check',
+    description:
+      'Aggregates Postgres, Redis, Telegram and heap-memory indicators. 200 when all up, 503 otherwise.',
+  })
+  @ApiOkResponse({
+    schema: {
+      example: {
+        status: 'ok',
+        info: { postgres: { status: 'up' }, redis: { status: 'up' } },
+        error: {},
+        details: { postgres: { status: 'up' }, redis: { status: 'up' } },
+      },
+    },
+  })
   check() {
     return this.health.check([
       () => this.prisma.isHealthy('postgres'),

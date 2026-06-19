@@ -17,6 +17,7 @@ interface CreateCreds {
 
 interface InstancePatch {
   status?: InstanceStatus;
+  firstName?: string | null;
   username?: string | null;
   tgUserId?: bigint | null;
   phone?: string | null;
@@ -106,7 +107,9 @@ export class InstancesService {
       label: row.label,
       engine: row.engine as EngineKey,
       status: row.status,
+      firstName: row.firstName ?? undefined,
       username: row.username ?? undefined,
+      phone: row.phone ?? undefined,
       apiId: row.apiId != null ? String(row.apiId) : undefined,
       createdAt: row.createdAt.toISOString(),
     };

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Activity, Clock, Server } from 'lucide-vue-next'
+import { Activity, Clock, Server, Webhook } from 'lucide-vue-next'
 import { api, type SystemStats } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import Card from '@/components/ui/Card.vue'
@@ -13,6 +13,7 @@ const auth = useAuthStore()
 const { t } = useI18n()
 
 const stats = ref<SystemStats | null>(null)
+const webhookCount = ref<number | null>(null)
 let timer: number | undefined
 
 async function load() {
@@ -20,6 +21,11 @@ async function load() {
     stats.value = await api.stats()
   } catch {
     stats.value = null
+  }
+  try {
+    webhookCount.value = (await api.webhooks()).length
+  } catch {
+    webhookCount.value = null
   }
 }
 
@@ -62,7 +68,7 @@ onUnmounted(() => {
       </p>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-3">
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <Card>
         <CardHeader class="flex-row items-center justify-between pb-2">
           <CardTitle class="text-sm font-medium text-muted-foreground">
@@ -105,6 +111,20 @@ onUnmounted(() => {
           </p>
           <p class="text-xs text-muted-foreground">
             {{ t('overview.connected', { n: stats?.instances.connected ?? 0 }) }}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader class="flex-row items-center justify-between pb-2">
+          <CardTitle class="text-sm font-medium text-muted-foreground">
+            {{ t('overview.webhooks') }}
+          </CardTitle>
+          <Webhook class="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <p class="text-2xl font-semibold tabular-nums">
+            {{ webhookCount ?? '—' }}
           </p>
         </CardContent>
       </Card>

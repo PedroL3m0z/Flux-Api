@@ -6,10 +6,13 @@ import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './core/prisma/prisma.module';
 import { RedisModule } from './core/redis/redis.module';
 import { TelegramModule } from './core/telegram/telegram.module';
+import { WebhooksModule } from './core/webhooks/webhooks.module';
 import { TelegramModule as TelegramHttpModule } from './modules/telegram/telegram.module';
+import { WebhooksModule as WebhooksHttpModule } from './modules/webhooks/webhooks.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { GlobalApiKeyGuard } from './modules/auth/guards/global-api-key.guard';
 import { HealthModule } from './modules/health/health.module';
 import { SeedModule } from './modules/seed/seed.module';
 import { UsersModule } from './modules/users/users.module';
@@ -35,10 +38,12 @@ import { UsersModule } from './modules/users/users.module';
     PrismaModule,
     RedisModule,
     TelegramModule,
+    WebhooksModule,
     HealthModule,
     UsersModule,
     AuthModule,
     TelegramHttpModule,
+    WebhooksHttpModule,
     DashboardModule,
     SeedModule,
   ],
@@ -47,6 +52,8 @@ import { UsersModule } from './modules/users/users.module';
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     // Global JWT auth (routes opt out with @Public())
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    // Global API-key requirement (routes opt out with @Public()/@NoApiKey())
+    { provide: APP_GUARD, useClass: GlobalApiKeyGuard },
   ],
 })
 export class AppModule {}

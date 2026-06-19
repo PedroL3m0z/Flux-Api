@@ -2,14 +2,30 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { toast } from 'vue-sonner'
 import QRCode from 'qrcode'
-import { ChevronDown, MessageSquare, Plus, Server, Trash2, X } from 'lucide-vue-next'
+import {
+  ChevronDown,
+  Info,
+  MessageSquare,
+  Play,
+  Plus,
+  Server,
+  Square,
+  Trash2,
+  Users as UsersIcon,
+  X,
+} from 'lucide-vue-next'
 import {
   api,
   type EngineKey,
+  type InstanceInfo,
+  type InstanceMember,
+  type InstanceRole,
   type InstanceStatus,
   type QrLoginEvent,
   type TelegramInstance,
+  type UserListItem,
 } from '@/lib/api'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
@@ -22,6 +38,18 @@ import CardContent from '@/components/ui/CardContent.vue'
 
 const { t, locale } = useI18n()
 const router = useRouter()
+
+const INSTANCE_ROLES: InstanceRole[] = ['owner', 'operator', 'viewer']
+
+/** Can perform operational actions (start/stop, send): operator and above. */
+function canOperate(inst: TelegramInstance): boolean {
+  return ['admin', 'owner', 'operator'].includes(inst.myRole ?? 'viewer')
+}
+
+/** Can administer the instance (delete, manage members): owner and above. */
+function canManage(inst: TelegramInstance): boolean {
+  return ['admin', 'owner'].includes(inst.myRole ?? 'viewer')
+}
 
 const engines: { key: EngineKey; label: string; disabled?: boolean }[] = [
   { key: 'gramjs', label: 'GramJS' },
@@ -50,6 +78,13 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleString(locale.value)
 }
 
+// Account display: real name, falling back to @username, then dash.
+function accountName(inst: TelegramInstance): string {
+  if (inst.firstName) return inst.firstName
+  if (inst.username) return '@' + inst.username
+  return '—'
+}
+
 const statusColor: Record<InstanceStatus, string> = {
   new: 'bg-muted text-muted-foreground',
   connecting: 'bg-amber-500/15 text-amber-600',
@@ -62,8 +97,89 @@ const statusColor: Record<InstanceStatus, string> = {
 
 async function removeInstance(inst: TelegramInstance) {
   if (!window.confirm(t('instances.confirmDelete'))) return
-  await api.deleteInstance(inst.id)
-  await loadInstances()
+  try {
+    await api.deleteInstance(inst.id)
+    await loadInstances()
+    toast.success(t('instances.deleted'))
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : t('instances.actionFailed'))
+  }
+}
+
+// --- Start / stop ---
+
+const busyId = ref('')
+
+async function startInstance(inst: TelegramInstance) {
+  busyId.value = inst.id
+  try {
+    await api.startInstance(inst.id)
+    await loadInstances()
+    toast.success(t('instances.started'))
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : t('instances.actionFailed'))
+  } finally {
+    busyId.value = ''
+  }
+}
+
+async function stopInstance(inst: TelegramInstance) {
+  busyId.value = inst.id
+  try {
+    await api.stopInstance(inst.id)
+    await loadInstances()
+    toast.success(t('instances.stopped'))
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : t('instances.actionFailed'))
+  } finally {
+    busyId.value = ''
+  }
+}
+
+// --- Info panel ---
+
+const showInfo = ref(false)
+const info = ref<InstanceInfo | null>(null)
+const infoLoading = ref(false)
+let infoTimer: ReturnType<typeof setInterval> | null = null
+
+async function refreshInfo(id: string) {
+  try {
+    info.value = await api.instanceInfo(id)
+  } catch {
+    /* keep last value */
+  }
+}
+
+async function openInfo(inst: TelegramInstance) {
+  showInfo.value = true
+  info.value = null
+  infoLoading.value = true
+  await refreshInfo(inst.id)
+  infoLoading.value = false
+  infoTimer = setInterval(() => void refreshInfo(inst.id), 5000)
+}
+
+function closeInfo() {
+  showInfo.value = false
+  if (infoTimer) {
+    clearInterval(infoTimer)
+    infoTimer = null
+  }
+}
+
+function fmtUptime(seconds: number | null): string {
+  if (seconds == null) return t('instances.infoOffline')
+  const d = Math.floor(seconds / 86400)
+  const h = Math.floor((seconds % 86400) / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = seconds % 60
+  const parts: string[] = []
+  if (d) parts.push(`${d}d`)
+  if (h) parts.push(`${h}h`)
+  if (m) parts.push(`${m}m`)
+  parts.push(`${s}s`)
+  return parts.join(' ')
 }
 
 // --- Add / QR login modal ---
@@ -160,14 +276,16 @@ async function handleEvent(event: QrLoginEvent) {
     case 'authorized':
       done = true
       authorizedName.value =
-        event.me.username ?? event.me.firstName ?? event.me.id
+        event.me.firstName ?? event.me.username ?? event.me.id
       closeStream()
       void loadInstances()
+      toast.success(t('instances.authorized', { name: authorizedName.value }))
       break
     case 'error':
       done = true
       qrError.value = event.message
       closeStream()
+      toast.error(event.message)
       break
   }
 }
@@ -185,7 +303,97 @@ async function submitPassword() {
   }
 }
 
-onUnmounted(closeStream)
+// --- Members modal ---
+
+const showMembers = ref(false)
+const membersInstance = ref<TelegramInstance | null>(null)
+const members = ref<InstanceMember[]>([])
+const allUsers = ref<UserListItem[]>([])
+const membersLoading = ref(false)
+const membersBusy = ref(false)
+const addUserId = ref('')
+const addRole = ref<InstanceRole>('operator')
+
+async function openMembers(inst: TelegramInstance) {
+  membersInstance.value = inst
+  showMembers.value = true
+  membersLoading.value = true
+  addUserId.value = ''
+  addRole.value = 'operator'
+  try {
+    ;[members.value, allUsers.value] = await Promise.all([
+      api.instanceMembers(inst.id),
+      api.users(),
+    ])
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : t('members.loadFailed'))
+  } finally {
+    membersLoading.value = false
+  }
+}
+
+function closeMembers() {
+  showMembers.value = false
+  membersInstance.value = null
+  members.value = []
+}
+
+// Users not yet members, eligible to be added.
+const addableUsers = () =>
+  allUsers.value.filter(
+    (u) => !members.value.some((m) => m.userId === u.id),
+  )
+
+async function addMember() {
+  if (!membersInstance.value || !addUserId.value) return
+  membersBusy.value = true
+  try {
+    await api.addInstanceMember(
+      membersInstance.value.id,
+      addUserId.value,
+      addRole.value,
+    )
+    members.value = await api.instanceMembers(membersInstance.value.id)
+    addUserId.value = ''
+    toast.success(t('members.added'))
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : t('members.actionFailed'))
+  } finally {
+    membersBusy.value = false
+  }
+}
+
+async function changeRole(m: InstanceMember, role: InstanceRole) {
+  if (!membersInstance.value) return
+  try {
+    const updated = await api.updateInstanceMemberRole(
+      membersInstance.value.id,
+      m.userId,
+      role,
+    )
+    m.role = updated.role
+    toast.success(t('members.updated'))
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : t('members.actionFailed'))
+  }
+}
+
+async function removeMember(m: InstanceMember) {
+  if (!membersInstance.value) return
+  if (!window.confirm(t('members.confirmRemove'))) return
+  try {
+    await api.removeInstanceMember(membersInstance.value.id, m.userId)
+    members.value = members.value.filter((x) => x.userId !== m.userId)
+    toast.success(t('members.removed'))
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : t('members.actionFailed'))
+  }
+}
+
+onUnmounted(() => {
+  closeStream()
+  closeInfo()
+})
 </script>
 
 <template>
@@ -244,11 +452,17 @@ onUnmounted(closeStream)
                   {{ t(`instances.status.${inst.status}`) }}
                 </span>
               </td>
-              <td class="px-4 py-3 text-muted-foreground">
-                {{ inst.username ? '@' + inst.username : '—' }}
-              </td>
+              <td class="px-4 py-3 text-muted-foreground">{{ accountName(inst) }}</td>
               <td class="px-4 py-3 text-muted-foreground">{{ fmtDate(inst.createdAt) }}</td>
               <td class="px-4 py-3 text-right">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  :title="t('instances.info')"
+                  @click="openInfo(inst)"
+                >
+                  <Info class="h-4 w-4" />
+                </Button>
                 <Button
                   v-if="inst.status === 'authorized'"
                   variant="ghost"
@@ -258,7 +472,42 @@ onUnmounted(closeStream)
                 >
                   <MessageSquare class="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" @click="removeInstance(inst)">
+                <Button
+                  v-if="inst.status === 'authorized' && canOperate(inst)"
+                  variant="ghost"
+                  size="icon"
+                  :title="t('instances.stop')"
+                  :disabled="busyId === inst.id"
+                  @click="stopInstance(inst)"
+                >
+                  <Square class="h-4 w-4" />
+                </Button>
+                <Button
+                  v-else-if="canOperate(inst) && (inst.status === 'disconnected' || inst.status === 'error')"
+                  variant="ghost"
+                  size="icon"
+                  :title="t('instances.start')"
+                  :disabled="busyId === inst.id"
+                  @click="startInstance(inst)"
+                >
+                  <Play class="h-4 w-4 text-green-600" />
+                </Button>
+                <Button
+                  v-if="canManage(inst)"
+                  variant="ghost"
+                  size="icon"
+                  :title="t('members.manage')"
+                  @click="openMembers(inst)"
+                >
+                  <UsersIcon class="h-4 w-4" />
+                </Button>
+                <Button
+                  v-if="canManage(inst)"
+                  variant="ghost"
+                  size="icon"
+                  :title="t('instances.delete')"
+                  @click="removeInstance(inst)"
+                >
                   <Trash2 class="h-4 w-4 text-destructive" />
                 </Button>
               </td>
@@ -368,6 +617,155 @@ onUnmounted(closeStream)
                 </p>
               </template>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+    </Teleport>
+
+    <!-- Info panel -->
+    <Teleport to="body">
+      <div
+        v-if="showInfo"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        @click.self="closeInfo"
+      >
+        <Card class="w-full max-w-md">
+          <CardHeader class="flex-row items-start justify-between">
+            <CardTitle class="flex items-center gap-2 text-base">
+              <Info class="h-4 w-4" /> {{ t('instances.infoTitle') }}
+            </CardTitle>
+            <Button variant="ghost" size="icon" @click="closeInfo">
+              <X class="h-4 w-4" />
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <p v-if="infoLoading" class="py-6 text-center text-sm text-muted-foreground">
+              {{ t('common.loading') }}
+            </p>
+            <dl v-else-if="info" class="grid grid-cols-3 gap-x-3 gap-y-3 text-sm">
+              <dt class="text-muted-foreground">{{ t('instances.infoAccount') }}</dt>
+              <dd class="col-span-2 break-words font-medium">
+                {{ accountName(info) }}
+                <span v-if="info.firstName && info.username" class="text-muted-foreground">
+                  (@{{ info.username }})
+                </span>
+              </dd>
+
+              <dt class="text-muted-foreground">{{ t('instances.infoLabel') }}</dt>
+              <dd class="col-span-2 break-words font-medium">{{ info.label }}</dd>
+
+              <dt class="text-muted-foreground">{{ t('instances.infoId') }}</dt>
+              <dd class="col-span-2 break-all font-mono text-xs">{{ info.id }}</dd>
+
+              <dt class="text-muted-foreground">{{ t('instances.infoStatus') }}</dt>
+              <dd class="col-span-2">
+                <span
+                  class="rounded-full px-2 py-0.5 text-xs font-medium"
+                  :class="statusColor[info.status]"
+                >
+                  {{ t(`instances.status.${info.status}`) }}
+                </span>
+              </dd>
+
+              <dt class="text-muted-foreground">{{ t('instances.infoPhone') }}</dt>
+              <dd class="col-span-2 font-medium">{{ info.phone ? '+' + info.phone : '—' }}</dd>
+
+              <dt class="text-muted-foreground">{{ t('instances.infoCreated') }}</dt>
+              <dd class="col-span-2 font-medium">{{ fmtDate(info.createdAt) }}</dd>
+
+              <dt class="text-muted-foreground">{{ t('instances.infoUptime') }}</dt>
+              <dd class="col-span-2 font-medium">{{ fmtUptime(info.uptimeSeconds) }}</dd>
+            </dl>
+          </CardContent>
+        </Card>
+      </div>
+    </Teleport>
+
+    <!-- Members panel -->
+    <Teleport to="body">
+      <div
+        v-if="showMembers"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        @click.self="closeMembers"
+      >
+        <Card class="w-full max-w-lg">
+          <CardHeader class="flex-row items-start justify-between">
+            <div>
+              <CardTitle class="flex items-center gap-2 text-base">
+                <UsersIcon class="h-4 w-4" /> {{ t('members.title') }}
+              </CardTitle>
+              <CardDescription>
+                {{ membersInstance?.label }} — {{ t('members.subtitle') }}
+              </CardDescription>
+            </div>
+            <Button variant="ghost" size="icon" @click="closeMembers">
+              <X class="h-4 w-4" />
+            </Button>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <p v-if="membersLoading" class="py-6 text-center text-sm text-muted-foreground">
+              {{ t('common.loading') }}
+            </p>
+            <template v-else>
+              <!-- Existing members -->
+              <ul class="divide-y rounded-md border">
+                <li v-if="!members.length" class="px-3 py-4 text-center text-sm text-muted-foreground">
+                  {{ t('members.empty') }}
+                </li>
+                <li
+                  v-for="m in members"
+                  :key="m.userId"
+                  class="flex items-center gap-2 px-3 py-2"
+                >
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-medium">{{ m.username }}</p>
+                    <p class="truncate text-xs text-muted-foreground">{{ m.email }}</p>
+                  </div>
+                  <select
+                    :value="m.role"
+                    class="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                    @change="changeRole(m, ($event.target as HTMLSelectElement).value as InstanceRole)"
+                  >
+                    <option v-for="r in INSTANCE_ROLES" :key="r" :value="r">
+                      {{ t(`roles.${r}`) }}
+                    </option>
+                  </select>
+                  <Button variant="ghost" size="icon" :title="t('members.remove')" @click="removeMember(m)">
+                    <Trash2 class="h-4 w-4 text-destructive" />
+                  </Button>
+                </li>
+              </ul>
+
+              <!-- Add member -->
+              <div class="flex items-end gap-2 border-t pt-4">
+                <div class="grid flex-1 gap-1">
+                  <Label class="text-xs">{{ t('members.addUser') }}</Label>
+                  <select
+                    v-model="addUserId"
+                    class="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option value="" disabled>{{ t('members.selectUser') }}</option>
+                    <option v-for="u in addableUsers()" :key="u.id" :value="u.id">
+                      {{ u.username }} ({{ u.email }})
+                    </option>
+                  </select>
+                </div>
+                <div class="grid gap-1">
+                  <Label class="text-xs">{{ t('members.role') }}</Label>
+                  <select
+                    v-model="addRole"
+                    class="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option v-for="r in INSTANCE_ROLES" :key="r" :value="r">
+                      {{ t(`roles.${r}`) }}
+                    </option>
+                  </select>
+                </div>
+                <Button :disabled="!addUserId || membersBusy" @click="addMember">
+                  {{ t('members.add') }}
+                </Button>
+              </div>
+            </template>
           </CardContent>
         </Card>
       </div>

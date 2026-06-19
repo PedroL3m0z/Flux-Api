@@ -3,6 +3,7 @@ import { InstancesService } from './services/instances.service';
 import { SettingsService } from './services/settings.service';
 import { TelegramSessionStore } from './telegram-session.store';
 import { TelegramSyncService } from './services/telegram-sync.service';
+import { TelegramEventBus } from './services/telegram-events.service';
 import { TelegramManager, type QrLoginEvent } from './telegram.manager';
 import type { TelegramInstance } from './telegram.constants';
 
@@ -17,7 +18,7 @@ const instance: TelegramInstance = {
 const makeClient = () => ({
   isAuthorized: jest.fn().mockResolvedValue(true),
   disconnect: jest.fn().mockResolvedValue(undefined),
-  getMe: jest.fn(),
+  getMe: jest.fn().mockResolvedValue(null),
   saveSession: jest.fn().mockReturnValue('SAVED_SESSION'),
   qrLogin: jest.fn(),
 });
@@ -52,14 +53,25 @@ const make = (available = true) => {
     onAuthorized: jest.fn().mockResolvedValue(undefined),
     stop: jest.fn(),
   };
+  const events = { publish: jest.fn(), events$: jest.fn() };
   const manager = new TelegramManager(
     registry,
     instances as unknown as InstancesService,
     settings as unknown as SettingsService,
     session as unknown as TelegramSessionStore,
     sync as unknown as TelegramSyncService,
+    events as unknown as TelegramEventBus,
   );
-  return { manager, instances, settings, session, sync, engine, client };
+  return {
+    manager,
+    instances,
+    settings,
+    session,
+    sync,
+    events,
+    engine,
+    client,
+  };
 };
 
 const collect = (manager: TelegramManager, id: string) =>
