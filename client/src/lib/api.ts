@@ -1,7 +1,15 @@
+export type GlobalRole = 'admin' | 'member'
+
+export type InstanceRole = 'owner' | 'operator' | 'viewer'
+
+/** Caller's effective role on an instance (`admin` = global superuser). */
+export type EffectiveRole = 'admin' | InstanceRole
+
 export interface SafeUser {
   id: string
   email: string
   username: string
+  role: GlobalRole
 }
 
 export interface Credentials {
@@ -24,6 +32,15 @@ export interface UserListItem {
   id: string
   email: string
   username: string
+  role: GlobalRole
+  createdAt: string
+}
+
+export interface InstanceMember {
+  userId: string
+  username: string
+  email: string
+  role: InstanceRole
   createdAt: string
 }
 
@@ -47,6 +64,8 @@ export interface TelegramInstance {
   username?: string
   phone?: string
   createdAt: string
+  /** The current user's effective role on this instance. */
+  myRole?: EffectiveRole
 }
 
 export interface InstanceInfo extends TelegramInstance {
@@ -125,6 +144,47 @@ export interface TelegramSettings {
   hasApiHash: boolean
 }
 
+export const WEBHOOK_EVENT_TYPES = [
+  'session.status',
+  'message.new',
+  'message.edited',
+  'message.deleted',
+  'message.read',
+  'message.reaction',
+] as const
+
+export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number]
+
+export interface Webhook {
+  id: string
+  name: string
+  url: string
+  active: boolean
+  events: string[]
+  instanceIds: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface WebhookWithSecret extends Webhook {
+  secret: string
+}
+
+export type WebhookDeliveryStatus = 'pending' | 'success' | 'failed' | 'dead'
+
+export interface WebhookDelivery {
+  id: string
+  webhookId: string
+  instanceId?: string
+  event: string
+  status: WebhookDeliveryStatus
+  attempts: number
+  statusCode?: number
+  lastError?: string
+  createdAt: string
+  deliveredAt?: string
+}
+
 export interface SystemStats {
   uptimeSeconds: number
   instances: {
@@ -198,6 +258,11 @@ export const api = {
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   me: () => request<SafeUser>('/auth/me'),
   users: () => request<UserListItem[]>('/users'),
+  setUserRole: (id: string, role: GlobalRole) =>
+    request<UserListItem>(`/users/${id}/role`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    }),
   apiKeyCheck: (key: string) =>
     request<{ ok: boolean; via: string }>('/auth/api-key-check', {
       headers: { 'x-api-key': key },
@@ -235,6 +300,24 @@ export const api = {
   // Server-sent stream of the QR login flow; caller subscribes and closes it.
   qrLoginStream: (id: string) =>
     new EventSource(withKey(`/telegram/instances/${id}/login/qr`)),
+
+  // --- Instance members (per-instance access) ---
+  instanceMembers: (id: string) =>
+    request<InstanceMember[]>(`/telegram/instances/${id}/members`),
+  addInstanceMember: (id: string, userId: string, role: InstanceRole) =>
+    request<InstanceMember>(`/telegram/instances/${id}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ userId, role }),
+    }),
+  updateInstanceMemberRole: (id: string, userId: string, role: InstanceRole) =>
+    request<InstanceMember>(`/telegram/instances/${id}/members/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    }),
+  removeInstanceMember: (id: string, userId: string) =>
+    request<void>(`/telegram/instances/${id}/members/${userId}`, {
+      method: 'DELETE',
+    }),
 
   instanceChats: (id: string) =>
     request<ChatView[]>(`/telegram/instances/${id}/chats`),
@@ -296,6 +379,52 @@ export const api = {
     withKey(`/telegram/instances/${id}/contacts/${contactId}/photo`),
   messageMediaUrl: (id: string, chatId: string, tgMessageId: string) =>
     withKey(`/telegram/instances/${id}/chats/${chatId}/messages/${tgMessageId}/media`),
+
+  // --- Webhooks ---
+  webhooks: () => request<Webhook[]>('/webhooks'),
+  createWebhook: (body: {
+    name: string
+    url: string
+    events: string[]
+    instanceIds?: string[]
+  }) =>
+    request<WebhookWithSecret>('/webhooks', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateWebhook: (
+    id: string,
+    body: {
+      name?: string
+      url?: string
+      active?: boolean
+      events?: string[]
+    },
+  ) =>
+    request<Webhook>(`/webhooks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteWebhook: (id: string) =>
+    request<void>(`/webhooks/${id}`, { method: 'DELETE' }),
+  regenerateWebhookSecret: (id: string) =>
+    request<WebhookWithSecret>(`/webhooks/${id}/regenerate-secret`, {
+      method: 'POST',
+    }),
+  linkWebhookInstance: (id: string, instanceId: string) =>
+    request<Webhook>(`/webhooks/${id}/instances/${instanceId}`, {
+      method: 'POST',
+    }),
+  unlinkWebhookInstance: (id: string, instanceId: string) =>
+    request<Webhook>(`/webhooks/${id}/instances/${instanceId}`, {
+      method: 'DELETE',
+    }),
+  webhookDeliveries: (id: string) =>
+    request<WebhookDelivery[]>(`/webhooks/${id}/deliveries`),
+  resendWebhookDelivery: (deliveryId: string) =>
+    request<WebhookDelivery>(`/webhooks/deliveries/${deliveryId}/resend`, {
+      method: 'POST',
+    }),
 
   stats: () => request<SystemStats>('/telegram/stats'),
   getSettings: () => request<TelegramSettings>('/telegram/settings'),

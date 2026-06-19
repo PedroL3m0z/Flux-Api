@@ -15,6 +15,8 @@ import { InstancesService } from './services/instances.service';
 import { SettingsService } from './services/settings.service';
 import { TelegramSessionStore } from './telegram-session.store';
 import { TelegramSyncService } from './services/telegram-sync.service';
+import { TelegramEventBus } from './services/telegram-events.service';
+import type { InstanceStatus } from './telegram.constants';
 import type { EngineConfig } from './engines/engine.types';
 import type { TelegramInstance } from './telegram.constants';
 
@@ -56,7 +58,21 @@ export class TelegramManager
     private readonly settings: SettingsService,
     private readonly session: TelegramSessionStore,
     private readonly sync: TelegramSyncService,
+    private readonly events: TelegramEventBus,
   ) {}
+
+  /** Publishes a session lifecycle event for webhooks/realtime consumers. */
+  private publishStatus(
+    instanceId: string,
+    status: InstanceStatus,
+    extra: Record<string, unknown> = {},
+  ): void {
+    this.events.publish({
+      instanceId,
+      type: 'session.status',
+      payload: { status, ...extra },
+    });
+  }
 
   /** Credentials for an instance: global settings, overridden per-instance. */
   private async resolveConfig(id: string): Promise<EngineConfig> {
@@ -160,6 +176,7 @@ export class TelegramManager
   async stopInstance(id: string): Promise<void> {
     await this.detach(id);
     await this.instances.update(id, { status: 'disconnected' });
+    this.publishStatus(id, 'disconnected');
   }
 
   /** (Re)connects an instance from its saved session. No-op if already live. */
@@ -277,12 +294,17 @@ export class TelegramManager
         phone: me.phone,
       });
       subject.next({ type: 'authorized', me });
+      this.publishStatus(id, 'authorized', {
+        username: me.username,
+        phone: me.phone,
+      });
       void this.sync.onAuthorized(id, client);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown error';
       await this.instances.update(id, { status: 'error' });
       await client?.disconnect().catch(() => undefined);
       subject.next({ type: 'error', message });
+      this.publishStatus(id, 'error', { message });
     } finally {
       this.pendingPasswords.delete(id);
       subject.complete();
@@ -319,6 +341,11 @@ export class TelegramManager
         username: me?.username,
         phone: me?.phone,
       });
+      this.publishStatus(
+        instance.id,
+        authorized ? 'authorized' : 'disconnected',
+        { username: me?.username, phone: me?.phone },
+      );
       if (authorized) {
         void this.sync.onAuthorized(instance.id, client);
       }
@@ -328,6 +355,7 @@ export class TelegramManager
         `Failed to restore instance ${instance.id}: ${message}`,
       );
       await this.instances.update(instance.id, { status: 'error' });
+      this.publishStatus(instance.id, 'error', { message });
     }
   }
 }

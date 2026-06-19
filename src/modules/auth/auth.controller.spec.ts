@@ -13,6 +13,7 @@ describe('AuthController', () => {
     id: 'u1',
     email: 'user@flux.dev',
     username: 'flux_user',
+    role: 'member',
   };
 
   beforeEach(() => {

@@ -30,11 +30,17 @@ export class SeedService implements OnApplicationBootstrap {
     try {
       const existing = await this.users.findByEmailOrUsername(email, username);
       if (existing) {
-        this.logger.log(`Seed user "${username}" already exists, skipping`);
+        if (existing.role !== 'admin') {
+          await this.users.setRole(existing.id, 'admin');
+          this.logger.log(`Promoted seed user "${username}" to admin`);
+        } else {
+          this.logger.log(`Seed user "${username}" already exists, skipping`);
+        }
         return;
       }
-      await this.auth.register({ email, username, password });
-      this.logger.log(`Seeded initial user "${username}"`);
+      const created = await this.auth.register({ email, username, password });
+      await this.users.setRole(created.id, 'admin');
+      this.logger.log(`Seeded initial admin user "${username}"`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown error';
       this.logger.error(`Failed to seed user: ${message}`);

@@ -2,7 +2,15 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import bigInt from 'big-integer';
 import { Api, TelegramClient } from 'telegram';
-import { NewMessage, type NewMessageEvent } from 'telegram/events';
+import { NewMessage, type NewMessageEvent, Raw } from 'telegram/events';
+import {
+  EditedMessage,
+  type EditedMessageEvent,
+} from 'telegram/events/EditedMessage';
+import {
+  DeletedMessage,
+  type DeletedMessageEvent,
+} from 'telegram/events/DeletedMessage';
 import { StringSession } from 'telegram/sessions';
 import { CustomFile } from 'telegram/client/uploads';
 import {
@@ -16,8 +24,10 @@ import {
   type MediaType,
   type NormalizedChat,
   type NormalizedContact,
+  type NormalizedEvent,
   type NormalizedMedia,
   type NormalizedMessage,
+  type NormalizedReaction,
   type PeerRef,
   type QrCallbacks,
   type TelegramMe,
@@ -174,6 +184,71 @@ function messageToNormalized(
         : undefined,
     media: mediaFromMessage(msg),
   };
+}
+
+function reactionsFromApi(
+  reactions?: Api.TypeMessageReactions,
+): NormalizedReaction[] {
+  if (!(reactions instanceof Api.MessageReactions)) {
+    return [];
+  }
+  return reactions.results.map((r) => {
+    if (r.reaction instanceof Api.ReactionEmoji) {
+      return { emoji: r.reaction.emoticon, count: r.count };
+    }
+    if (r.reaction instanceof Api.ReactionCustomEmoji) {
+      return {
+        customEmojiId: r.reaction.documentId.toString(),
+        count: r.count,
+      };
+    }
+    return { count: r.count };
+  });
+}
+
+/** Maps a raw MTProto update to a normalized event, or undefined if irrelevant. */
+function rawToEvent(update: Api.TypeUpdate): NormalizedEvent | undefined {
+  if (update instanceof Api.UpdateReadHistoryOutbox) {
+    return {
+      type: 'message.read',
+      chat: chatFromPeer(update.peer),
+      maxId: String(update.maxId),
+      direction: 'outbound',
+    };
+  }
+  if (update instanceof Api.UpdateReadHistoryInbox) {
+    return {
+      type: 'message.read',
+      chat: chatFromPeer(update.peer),
+      maxId: String(update.maxId),
+      direction: 'inbound',
+    };
+  }
+  if (update instanceof Api.UpdateReadChannelOutbox) {
+    return {
+      type: 'message.read',
+      chat: { tgPeerId: update.channelId.toString(), type: 'channel' },
+      maxId: String(update.maxId),
+      direction: 'outbound',
+    };
+  }
+  if (update instanceof Api.UpdateReadChannelInbox) {
+    return {
+      type: 'message.read',
+      chat: { tgPeerId: update.channelId.toString(), type: 'channel' },
+      maxId: String(update.maxId),
+      direction: 'inbound',
+    };
+  }
+  if (update instanceof Api.UpdateMessageReactions) {
+    return {
+      type: 'message.reaction',
+      chat: chatFromPeer(update.peer),
+      tgMessageId: String(update.msgId),
+      reactions: reactionsFromApi(update.reactions),
+    };
+  }
+  return undefined;
 }
 
 function inputPeer(peer: PeerRef): Api.TypeInputPeer {
@@ -348,14 +423,52 @@ class GramJsClient implements EngineClient {
     };
   }
 
-  onMessage(handler: (message: NormalizedMessage) => void): () => void {
-    const event = new NewMessage({});
-    const callback = (update: NewMessageEvent) => {
-      const msg = update.message;
-      handler(messageToNormalized(msg, chatFromPeer(msg.peerId)));
+  onEvent(handler: (event: NormalizedEvent) => void): () => void {
+    const unsubs: Array<() => void> = [];
+
+    const newMsg = new NewMessage({});
+    const onNew = (u: NewMessageEvent) =>
+      handler({
+        type: 'message.new',
+        message: messageToNormalized(u.message, chatFromPeer(u.message.peerId)),
+      });
+    this.client.addEventHandler(onNew, newMsg);
+    unsubs.push(() => this.client.removeEventHandler(onNew, newMsg));
+
+    const editedMsg = new EditedMessage({});
+    const onEdit = (u: EditedMessageEvent) =>
+      handler({
+        type: 'message.edited',
+        message: messageToNormalized(u.message, chatFromPeer(u.message.peerId)),
+      });
+    this.client.addEventHandler(onEdit, editedMsg);
+    unsubs.push(() => this.client.removeEventHandler(onEdit, editedMsg));
+
+    const deletedMsg = new DeletedMessage({});
+    const onDelete = (u: DeletedMessageEvent) =>
+      handler({
+        type: 'message.deleted',
+        tgMessageIds: u.deletedIds.map(String),
+      });
+    this.client.addEventHandler(onDelete, deletedMsg);
+    unsubs.push(() => this.client.removeEventHandler(onDelete, deletedMsg));
+
+    // Read receipts and reactions only surface as raw MTProto updates.
+    const raw = new Raw({});
+    const onRaw = (update: Api.TypeUpdate) => {
+      const event = rawToEvent(update);
+      if (event) {
+        handler(event);
+      }
     };
-    this.client.addEventHandler(callback, event);
-    return () => this.client.removeEventHandler(callback, event);
+    this.client.addEventHandler(onRaw, raw);
+    unsubs.push(() => this.client.removeEventHandler(onRaw, raw));
+
+    return () => {
+      for (const unsub of unsubs) {
+        unsub();
+      }
+    };
   }
 }
 

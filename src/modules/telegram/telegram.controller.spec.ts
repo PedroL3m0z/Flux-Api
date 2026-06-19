@@ -5,11 +5,17 @@ import {
 } from '@nestjs/common';
 import { TelegramManager } from '../../core/telegram/telegram.manager';
 import { SettingsService } from '../../core/telegram/services/settings.service';
+import { InstanceAccessService } from '../../core/telegram/services/instance-access.service';
 import type { SafeUser } from '../auth/auth.service';
 import { MessagingService } from './messaging.service';
 import { TelegramController } from './telegram.controller';
 
-const user: SafeUser = { id: 'u1', email: 'a@b.c', username: 'admin' };
+const user: SafeUser = {
+  id: 'u1',
+  email: 'a@b.c',
+  username: 'admin',
+  role: 'admin',
+};
 
 describe('TelegramController', () => {
   let controller: TelegramController;
@@ -22,12 +28,17 @@ describe('TelegramController', () => {
     submitPassword: jest.Mock;
     isEngineAvailable: jest.Mock;
   };
+  let access: {
+    grantOwner: jest.Mock;
+    rolesFor: jest.Mock;
+    resolve: jest.Mock;
+  };
 
   beforeEach(() => {
     manager = {
       enabled: true,
-      createInstance: jest.fn(),
-      listInstances: jest.fn(),
+      createInstance: jest.fn().mockResolvedValue({ id: 'i1', label: 'Main' }),
+      listInstances: jest.fn().mockResolvedValue([]),
       getInstance: jest.fn(),
       removeInstance: jest.fn(),
       submitPassword: jest.fn(),
@@ -43,10 +54,18 @@ describe('TelegramController', () => {
       getTelegramView: jest.fn(),
       setTelegram: jest.fn(),
     };
+    access = {
+      grantOwner: jest.fn().mockResolvedValue(undefined),
+      rolesFor: jest.fn().mockResolvedValue(new Map()),
+      resolve: jest
+        .fn()
+        .mockResolvedValue({ role: 'owner', permissions: new Set() }),
+    };
     controller = new TelegramController(
       manager as unknown as TelegramManager,
       messaging as unknown as MessagingService,
       settings as unknown as SettingsService,
+      access as unknown as InstanceAccessService,
     );
   });
 
@@ -56,13 +75,13 @@ describe('TelegramController', () => {
     });
 
     it('rejects every endpoint with 503', async () => {
-      expect(() => controller.createInstance(user, { label: 'x' })).toThrow(
+      await expect(
+        controller.createInstance(user, { label: 'x' }),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+      await expect(controller.listInstances(user)).rejects.toBeInstanceOf(
         ServiceUnavailableException,
       );
-      expect(() => controller.listInstances()).toThrow(
-        ServiceUnavailableException,
-      );
-      await expect(controller.getInstance('i1')).rejects.toBeInstanceOf(
+      await expect(controller.getInstance(user, 'i1')).rejects.toBeInstanceOf(
         ServiceUnavailableException,
       );
       expect(manager.createInstance).not.toHaveBeenCalled();
@@ -70,8 +89,8 @@ describe('TelegramController', () => {
   });
 
   describe('when enabled', () => {
-    it('delegates create to the manager', () => {
-      void controller.createInstance(user, {
+    it('delegates create to the manager and grants ownership', async () => {
+      const result = await controller.createInstance(user, {
         label: 'Main',
         apiId: '123',
         apiHash: 'h',
@@ -80,26 +99,34 @@ describe('TelegramController', () => {
         'u1',
         'Main',
         undefined,
-        { apiId: '123', apiHash: 'h' },
+        {
+          apiId: '123',
+          apiHash: 'h',
+        },
       );
+      expect(access.grantOwner).toHaveBeenCalledWith('i1', 'u1');
+      expect(result.myRole).toBe('owner');
     });
 
-    it('400s when the chosen engine is unavailable', () => {
+    it('400s when the chosen engine is unavailable', async () => {
       manager.isEngineAvailable.mockReturnValue(false);
-      expect(() =>
-        controller.createInstance(user, {
-          label: 'Main',
-          engine: 'telegraf',
-        }),
-      ).toThrow(BadRequestException);
+      await expect(
+        controller.createInstance(user, { label: 'Main', engine: 'telegraf' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
       expect(manager.createInstance).not.toHaveBeenCalled();
     });
 
     it('404s when an instance is missing', async () => {
       manager.getInstance.mockResolvedValue(null);
-      await expect(controller.getInstance('nope')).rejects.toBeInstanceOf(
+      await expect(controller.getInstance(user, 'nope')).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+
+    it('attaches myRole to a fetched instance', async () => {
+      manager.getInstance.mockResolvedValue({ id: 'i1', label: 'Main' });
+      const result = await controller.getInstance(user, 'i1');
+      expect(result.myRole).toBe('owner');
     });
 
     it('accepts a pending 2FA password', () => {

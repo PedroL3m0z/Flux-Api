@@ -30,6 +30,11 @@ const router = createRouter({
           component: () => import('@/pages/dashboard/InstanceChats.vue'),
         },
         {
+          path: 'webhooks',
+          name: 'webhooks',
+          component: () => import('@/pages/dashboard/Webhooks.vue'),
+        },
+        {
           path: 'settings',
           name: 'settings',
           component: () => import('@/pages/dashboard/Settings.vue'),

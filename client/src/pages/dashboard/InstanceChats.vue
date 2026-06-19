@@ -26,6 +26,8 @@ const loadingMessages = ref(false)
 const loadingMore = ref(false)
 const cursor = ref<string | null>(null)
 const sending = ref(false)
+// Whether the current user may send in this instance (operator and above).
+const canSend = ref(false)
 const scroller = ref<HTMLElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 let stream: EventSource | null = null
@@ -182,6 +184,14 @@ function mediaUrl(msg: MessageView): string {
 }
 
 onMounted(async () => {
+  try {
+    const info = await api.instanceInfo(instanceId)
+    canSend.value = ['admin', 'owner', 'operator'].includes(
+      info.myRole ?? 'viewer',
+    )
+  } catch {
+    canSend.value = false
+  }
   await loadChats()
   stream = api.messagesStream(instanceId)
   stream.onmessage = (ev: MessageEvent<string>) => {
@@ -383,12 +393,21 @@ onUnmounted(() => stream?.close())
               </div>
             </div>
           </div>
-          <form class="flex gap-2 border-t p-3" @submit.prevent="onSend">
+          <form
+            v-if="canSend"
+            class="flex gap-2 border-t p-3"
+            @submit.prevent="onSend"
+          >
             <input
               ref="fileInput"
               type="file"
               class="hidden"
               @change="onFilePicked"
+            />
+            <Input
+              v-model="sendText"
+              :placeholder="t('chats.placeholder')"
+              class="flex-1"
             />
             <Button
               type="button"
@@ -400,15 +419,16 @@ onUnmounted(() => stream?.close())
             >
               <Paperclip class="h-4 w-4" />
             </Button>
-            <Input
-              v-model="sendText"
-              :placeholder="t('chats.placeholder')"
-              class="flex-1"
-            />
             <Button type="submit" size="icon" :disabled="sending">
               <Send class="h-4 w-4" />
             </Button>
           </form>
+          <p
+            v-else
+            class="border-t p-3 text-center text-xs text-muted-foreground"
+          >
+            {{ t('chats.readOnly') }}
+          </p>
         </template>
       </section>
     </div>

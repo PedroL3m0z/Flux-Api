@@ -5,8 +5,9 @@ import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
 import { useI18n } from 'vue-i18n'
 import { toast } from 'vue-sonner'
-import { Plus, UserPlus, X } from 'lucide-vue-next'
-import { api, type UserListItem } from '@/lib/api'
+import { Plus, ShieldCheck, UserPlus, X } from 'lucide-vue-next'
+import { api, type GlobalRole, type UserListItem } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
@@ -17,9 +18,21 @@ import CardDescription from '@/components/ui/CardDescription.vue'
 import CardContent from '@/components/ui/CardContent.vue'
 
 const { t, locale } = useI18n()
+const auth = useAuthStore()
 const users = ref<UserListItem[]>([])
 const listError = ref('')
 const loading = ref(false)
+
+async function toggleRole(u: UserListItem) {
+  const next: GlobalRole = u.role === 'admin' ? 'member' : 'admin'
+  try {
+    const updated = await api.setUserRole(u.id, next)
+    u.role = updated.role
+    toast.success(t('users.roleUpdated'))
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : t('users.roleFailed'))
+  }
+}
 
 async function loadUsers() {
   loading.value = true
@@ -101,22 +114,24 @@ const onSubmit = handleSubmit(async (values) => {
             <tr class="border-b text-left text-muted-foreground">
               <th class="px-4 py-3 font-medium">{{ t('users.colUser') }}</th>
               <th class="px-4 py-3 font-medium">{{ t('users.colEmail') }}</th>
+              <th class="px-4 py-3 font-medium">{{ t('users.colRole') }}</th>
               <th class="px-4 py-3 font-medium">{{ t('users.colCreated') }}</th>
+              <th v-if="auth.isAdmin" class="px-4 py-3 font-medium"></th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="3" class="px-4 py-6 text-center text-muted-foreground">
+              <td :colspan="auth.isAdmin ? 5 : 4" class="px-4 py-6 text-center text-muted-foreground">
                 {{ t('common.loading') }}
               </td>
             </tr>
             <tr v-else-if="listError">
-              <td colspan="3" class="px-4 py-6 text-center text-destructive">
+              <td :colspan="auth.isAdmin ? 5 : 4" class="px-4 py-6 text-center text-destructive">
                 {{ listError }}
               </td>
             </tr>
             <tr v-else-if="!users.length">
-              <td colspan="3" class="px-4 py-6 text-center text-muted-foreground">
+              <td :colspan="auth.isAdmin ? 5 : 4" class="px-4 py-6 text-center text-muted-foreground">
                 {{ t('users.empty') }}
               </td>
             </tr>
@@ -127,7 +142,28 @@ const onSubmit = handleSubmit(async (values) => {
             >
               <td class="px-4 py-3 font-medium">{{ u.username }}</td>
               <td class="px-4 py-3 text-muted-foreground">{{ u.email }}</td>
+              <td class="px-4 py-3">
+                <span
+                  class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+                  :class="u.role === 'admin'
+                    ? 'bg-primary/10 text-primary'
+                    : 'bg-muted text-muted-foreground'"
+                >
+                  <ShieldCheck v-if="u.role === 'admin'" class="h-3 w-3" />
+                  {{ t(`roles.${u.role}`) }}
+                </span>
+              </td>
               <td class="px-4 py-3 text-muted-foreground">{{ fmtDate(u.createdAt) }}</td>
+              <td v-if="auth.isAdmin" class="px-4 py-3 text-right">
+                <Button
+                  v-if="u.id !== auth.user?.id"
+                  variant="outline"
+                  size="sm"
+                  @click="toggleRole(u)"
+                >
+                  {{ u.role === 'admin' ? t('users.demote') : t('users.promote') }}
+                </Button>
+              </td>
             </tr>
           </tbody>
         </table>

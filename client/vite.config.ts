@@ -25,6 +25,16 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  build: {
+    rollupOptions: {
+      // Silence noisy INVALID_ANNOTATION warnings from third-party deps
+      // (e.g. @vueuse/core ships /* #__PURE__ */ comments Rolldown can't read).
+      onwarn(warning, defaultHandler) {
+        if (warning.code === 'INVALID_ANNOTATION') return
+        defaultHandler(warning)
+      },
+    },
+  },
   server: {
     // Dev-only: proxy API calls to the Nest backend so the SPA can use
     // same-origin relative URLs in both dev and production.
@@ -32,6 +42,7 @@ export default defineConfig({
       '/auth': 'http://localhost:3000',
       '/health': 'http://localhost:3000',
       '/telegram': 'http://localhost:3000',
+      '/webhooks': 'http://localhost:3000',
     },
   },
 })

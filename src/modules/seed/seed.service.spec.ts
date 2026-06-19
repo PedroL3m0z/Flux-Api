@@ -4,14 +4,16 @@ import { UsersService } from '../users/users.service';
 import { SeedService } from './seed.service';
 
 describe('SeedService', () => {
-  let users: jest.Mocked<Pick<UsersService, 'findByEmailOrUsername'>>;
+  let users: jest.Mocked<
+    Pick<UsersService, 'findByEmailOrUsername' | 'setRole'>
+  >;
   let auth: jest.Mocked<Pick<AuthService, 'register'>>;
 
   const make = (env: Record<string, string | undefined>) => {
     const config = {
       get: jest.fn((key: string) => env[key]),
     } as unknown as ConfigService;
-    users = { findByEmailOrUsername: jest.fn() };
+    users = { findByEmailOrUsername: jest.fn(), setRole: jest.fn() };
     auth = { register: jest.fn() };
     return new SeedService(
       config,
@@ -33,9 +35,15 @@ describe('SeedService', () => {
     expect(auth.register).not.toHaveBeenCalled();
   });
 
-  it('registers the user when absent', async () => {
+  it('registers the user as admin when absent', async () => {
     const svc = make(full);
     users.findByEmailOrUsername.mockResolvedValue(null);
+    auth.register.mockResolvedValue({
+      id: 'u1',
+      email: 'admin@flux.dev',
+      username: 'admin',
+      role: 'member',
+    });
 
     await svc.onApplicationBootstrap();
 
@@ -44,15 +52,33 @@ describe('SeedService', () => {
       username: 'admin',
       password: 'S3cureP@ss',
     });
+    expect(users.setRole).toHaveBeenCalledWith('u1', 'admin');
   });
 
-  it('skips when the user already exists', async () => {
+  it('promotes an existing non-admin seed user', async () => {
     const svc = make(full);
-    users.findByEmailOrUsername.mockResolvedValue({ id: 'u1' } as never);
+    users.findByEmailOrUsername.mockResolvedValue({
+      id: 'u1',
+      role: 'member',
+    } as never);
 
     await svc.onApplicationBootstrap();
 
     expect(auth.register).not.toHaveBeenCalled();
+    expect(users.setRole).toHaveBeenCalledWith('u1', 'admin');
+  });
+
+  it('skips when the user already exists as admin', async () => {
+    const svc = make(full);
+    users.findByEmailOrUsername.mockResolvedValue({
+      id: 'u1',
+      role: 'admin',
+    } as never);
+
+    await svc.onApplicationBootstrap();
+
+    expect(auth.register).not.toHaveBeenCalled();
+    expect(users.setRole).not.toHaveBeenCalled();
   });
 
   it('never throws if registration fails', async () => {

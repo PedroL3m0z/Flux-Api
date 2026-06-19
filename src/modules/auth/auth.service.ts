@@ -8,11 +8,13 @@ import { HashingService } from '../../common/hashing/hashing.service';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import type { JwtPayload } from './strategies/jwt.strategy';
+import type { GlobalRole } from '../../common/authz/permissions';
 
 export interface SafeUser {
   id: string;
   email: string;
   username: string;
+  role: GlobalRole;
 }
 
 /** True for a Prisma unique-constraint violation (error code P2002). */
@@ -48,7 +50,12 @@ export class AuthService {
         username: dto.username,
         password,
       });
-      return { id: user.id, email: user.email, username: user.username };
+      return {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+      };
     } catch (error) {
       // Unique-constraint race: another request created the same email/username
       // between the check above and this insert. Prisma reports it as P2002.
@@ -72,7 +79,12 @@ export class AuthService {
     if (!valid) {
       return null;
     }
-    return { id: user.id, email: user.email, username: user.username };
+    return {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+    };
   }
 
   async login(user: SafeUser): Promise<{ accessToken: string }> {
