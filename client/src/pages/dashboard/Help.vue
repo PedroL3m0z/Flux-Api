@@ -7,6 +7,7 @@ import {
   Radio,
   Server,
   Settings,
+  ShieldCheck,
   Users,
   Webhook,
 } from 'lucide-vue-next'
@@ -25,6 +26,7 @@ const steps = [
   { icon: Radio, title: 'help.eventsTitle', body: 'help.eventsBody' },
   { icon: Webhook, title: 'help.webhooksTitle', body: 'help.webhooksBody' },
   { icon: Users, title: 'help.usersTitle', body: 'help.usersBody' },
+  { icon: ShieldCheck, title: 'help.rolesTitle', body: 'help.rolesBody' },
   { icon: KeyRound, title: 'help.apiTitle', body: 'help.apiBody', docs: true },
 ]
 </script>

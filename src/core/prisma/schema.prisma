@@ -13,11 +13,6 @@ datasource db {
 
 enum Role {
   admin
-  member
-}
-
-enum InstanceRole {
-  owner
   operator
   viewer
 }
@@ -27,13 +22,12 @@ model User {
   email     String   @unique
   username  String   @unique
   password  String
-  role      Role     @default(member)
+  role      Role     @default(viewer)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  instances   Instance[]
-  webhooks    Webhook[]
-  memberships InstanceMember[]
+  instances Instance[]
+  webhooks  Webhook[]
 
   @@map("users")
 }
@@ -42,6 +36,7 @@ enum InstanceStatus {
   new
   connecting
   awaiting_qr
+  awaiting_code
   password_required
   authorized
   disconnected
@@ -92,24 +87,9 @@ model Instance {
   contacts     Contact[]
   messages     Message[]
   webhookLinks WebhookInstance[]
-  members      InstanceMember[]
 
   @@index([ownerId])
   @@map("telegram_instances")
-}
-
-model InstanceMember {
-  instanceId String
-  instance   Instance     @relation(fields: [instanceId], references: [id], onDelete: Cascade)
-  userId     String
-  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role       InstanceRole @default(viewer)
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
-
-  @@id([instanceId, userId])
-  @@index([userId])
-  @@map("instance_members")
 }
 
 model Contact {

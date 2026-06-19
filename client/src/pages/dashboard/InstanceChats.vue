@@ -186,7 +186,7 @@ function mediaUrl(msg: MessageView): string {
 onMounted(async () => {
   try {
     const info = await api.instanceInfo(instanceId)
-    canSend.value = ['admin', 'owner', 'operator'].includes(
+    canSend.value = ['admin', 'operator'].includes(
       info.myRole ?? 'viewer',
     )
   } catch {

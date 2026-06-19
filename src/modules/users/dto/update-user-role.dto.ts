@@ -1,11 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn } from 'class-validator';
-import type { GlobalRole } from '../../../common/authz/permissions';
+import type { UserRole } from '../../../common/authz/permissions';
 
-const ROLES: GlobalRole[] = ['admin', 'member'];
+const ROLES: UserRole[] = ['admin', 'operator', 'viewer'];
 
 export class UpdateUserRoleDto {
-  @ApiProperty({ enum: ROLES, example: 'admin' })
+  @ApiProperty({ enum: ROLES, example: 'operator' })
   @IsIn(ROLES)
-  role!: GlobalRole;
+  role!: UserRole;
 }

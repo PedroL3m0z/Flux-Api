@@ -21,13 +21,19 @@ const makeClient = () => ({
   getMe: jest.fn().mockResolvedValue(null),
   saveSession: jest.fn().mockReturnValue('SAVED_SESSION'),
   qrLogin: jest.fn(),
+  phoneLogin: jest.fn(),
 });
 
 const make = (available = true) => {
   const client = makeClient();
   const engine = {
     key: 'gramjs' as const,
-    capabilities: { qrLogin: true, botToken: false },
+    capabilities: {
+      qrLogin: true,
+      phoneLogin: true,
+      botToken: false,
+      messaging: true,
+    },
     isAvailable: jest.fn().mockReturnValue(available),
     requiredConfig: jest.fn().mockReturnValue(['apiId', 'apiHash']),
     connect: jest.fn().mockResolvedValue(client),
@@ -62,6 +68,7 @@ const make = (available = true) => {
     sync as unknown as TelegramSyncService,
     events as unknown as TelegramEventBus,
   );
+  activeManager = manager;
   return {
     manager,
     instances,
@@ -83,7 +90,16 @@ const collect = (manager: TelegramManager, id: string) =>
     });
   });
 
+let activeManager: TelegramManager | null = null;
+
 describe('TelegramManager', () => {
+  afterEach(async () => {
+    if (activeManager) {
+      await activeManager.onModuleDestroy();
+      activeManager = null;
+    }
+  });
+
   it('is disabled when no engine is available', async () => {
     const { manager, instances } = make(false);
     expect(manager.enabled).toBe(false);
@@ -101,6 +117,7 @@ describe('TelegramManager', () => {
     const { manager, instances, session, engine, client } = make();
     instances.list.mockResolvedValue([instance]);
     session.loadSession.mockResolvedValue('SESSION');
+    client.getMe.mockResolvedValue({ id: '1', username: 'u' });
 
     await manager.onApplicationBootstrap();
 
@@ -111,6 +128,9 @@ describe('TelegramManager', () => {
     expect(client.isAuthorized).toHaveBeenCalled();
     expect(instances.update).toHaveBeenCalledWith('i1', {
       status: 'authorized',
+      username: 'u',
+      firstName: undefined,
+      phone: undefined,
     });
     expect(manager.getClient('i1')).toBe(client);
   });
@@ -134,13 +154,18 @@ describe('TelegramManager', () => {
 
     await manager.onApplicationBootstrap();
 
-    expect(instances.update).toHaveBeenCalledWith('i1', { status: 'error' });
+    expect(instances.update).toHaveBeenCalledWith(
+      'i1',
+      expect.objectContaining({ status: 'error' }),
+    );
+    expect(session.deleteSession).toHaveBeenCalledWith('i1');
   });
 
   it('disconnects the client and clears the session when removing', async () => {
     const { manager, instances, session, client } = make();
     instances.list.mockResolvedValue([instance]);
     session.loadSession.mockResolvedValue('SESSION');
+    client.getMe.mockResolvedValue({ id: '1', username: 'u' });
     await manager.onApplicationBootstrap();
 
     await manager.removeInstance('i1');
@@ -190,6 +215,39 @@ describe('TelegramManager', () => {
       expect(events).toEqual([
         { type: 'error', message: 'Instance not found' },
       ]);
+    });
+  });
+
+  describe('Phone login', () => {
+    it('sends code then authorizes and persists the session', async () => {
+      const { manager, instances, session, client } = make();
+      instances.get.mockResolvedValue(instance);
+      client.phoneLogin.mockImplementation(
+        async (
+          _phone: string,
+          cb: {
+            onCodeSent: () => void;
+            onCodeRequired: () => Promise<string>;
+          },
+        ) => {
+          cb.onCodeSent();
+          const code = await cb.onCodeRequired();
+          expect(code).toBe('12345');
+          return { id: '99', username: 'phone_user' };
+        },
+      );
+
+      await manager.startPhoneLogin('i1', '+5511999999999');
+      expect(instances.update).toHaveBeenCalledWith('i1', {
+        status: 'awaiting_code',
+      });
+
+      await expect(manager.submitPhoneCode('i1', '12345')).resolves.toEqual({
+        status: 'authorized',
+        me: { id: '99', username: 'phone_user' },
+      });
+      expect(session.saveSession).toHaveBeenCalledWith('i1', 'SAVED_SESSION');
+      expect(manager.getClient('i1')).toBe(client);
     });
   });
 });

@@ -1,72 +1,64 @@
 /**
- * Authorization primitives shared across the app.
- *
- * Access to an instance resolves to an effective role, which maps to a set of
- * permissions. Global `admin` users bypass instance checks entirely; any other
- * authenticated user has the `viewer` baseline on every instance and is elevated
- * to `operator`/`owner` by an explicit `InstanceMember` row.
+ * Global dashboard permission levels. Every authenticated user is authorized
+ * against the same role → permission map; there is no per-instance membership.
  */
 
-/** Global user role (mirrors the Prisma `Role` enum). */
-export type GlobalRole = 'admin' | 'member';
+/** Dashboard role (mirrors the Prisma `Role` enum). */
+export type UserRole = 'admin' | 'operator' | 'viewer';
 
-/** Per-instance role (mirrors the Prisma `InstanceRole` enum). */
-export type InstanceRole = 'owner' | 'operator' | 'viewer';
+/** @deprecated alias kept for gradual migration in types */
+export type GlobalRole = UserRole;
 
-/** Effective role used for permission resolution (`admin` = global superuser). */
-export type EffectiveRole = 'admin' | InstanceRole;
-
-/** Fine-grained actions guarded on instance-scoped routes. */
+/** Fine-grained actions guarded on routes. */
 export type Permission =
   | 'instance:read'
-  | 'instance:manage' // start / stop / login lifecycle
-  | 'instance:update'
+  | 'instance:manage'
   | 'instance:delete'
   | 'chat:read'
   | 'message:read'
   | 'message:send'
   | 'media:send'
-  | 'member:read'
-  | 'member:manage'
   | 'webhook:read'
-  | 'webhook:manage';
+  | 'webhook:manage'
+  | 'user:read'
+  | 'user:manage';
 
-const VIEWER: Permission[] = ['instance:read', 'chat:read', 'message:read'];
+const VIEWER: Permission[] = [
+  'instance:read',
+  'chat:read',
+  'message:read',
+  'webhook:read',
+];
 
 const OPERATOR: Permission[] = [
   ...VIEWER,
   'instance:manage',
+  'instance:delete',
   'message:send',
   'media:send',
-  'member:read',
-  'webhook:read',
   'webhook:manage',
 ];
 
-const OWNER: Permission[] = [
+/** All permissions — granted to global admins. */
+export const ALL_PERMISSIONS: Permission[] = [
   ...OPERATOR,
-  'instance:update',
-  'instance:delete',
-  'member:manage',
+  'user:read',
+  'user:manage',
 ];
 
-/** All permissions — granted to global admins. */
-export const ALL_PERMISSIONS: Permission[] = [...OWNER];
-
-/** Effective role → granted permissions. */
-export const ROLE_PERMISSIONS: Record<EffectiveRole, Permission[]> = {
+/** Role → granted permissions. */
+export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: ALL_PERMISSIONS,
-  owner: OWNER,
   operator: OPERATOR,
   viewer: VIEWER,
 };
 
-/** Permissions granted to an effective role, as a Set for O(1) checks. */
-export function permissionsFor(role: EffectiveRole): Set<Permission> {
+/** Permissions granted to a role, as a Set for O(1) checks. */
+export function permissionsFor(role: UserRole): Set<Permission> {
   return new Set(ROLE_PERMISSIONS[role]);
 }
 
-/** Whether an effective role grants a permission. */
-export function roleHas(role: EffectiveRole, permission: Permission): boolean {
+/** Whether a role grants a permission. */
+export function roleHas(role: UserRole, permission: Permission): boolean {
   return ROLE_PERMISSIONS[role].includes(permission);
 }

@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { validateEnv } from './config/env.validation';
+import { AuthzModule } from './common/authz/authz.module';
 import { PrismaModule } from './core/prisma/prisma.module';
 import { RedisModule } from './core/redis/redis.module';
 import { TelegramModule } from './core/telegram/telegram.module';
@@ -37,6 +38,7 @@ import { UsersModule } from './modules/users/users.module';
     }),
     PrismaModule,
     RedisModule,
+    AuthzModule,
     TelegramModule,
     WebhooksModule,
     HealthModule,

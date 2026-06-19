@@ -8,7 +8,6 @@ import {
   HttpStatus,
   NotFoundException,
   Param,
-  Patch,
   Post,
   Put,
   Query,
@@ -40,7 +39,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { map, type Observable } from 'rxjs';
+import { filter, map, type Observable } from 'rxjs';
 import type { MediaBlob } from '../../core/telegram/engines/engine.types';
 import { SendMediaDto } from './dto/send-media.dto';
 
@@ -52,18 +51,17 @@ interface UploadedFileLike {
 }
 import { TelegramManager } from '../../core/telegram/telegram.manager';
 import { SettingsService } from '../../core/telegram/services/settings.service';
-import { InstanceAccessService } from '../../core/telegram/services/instance-access.service';
+import { TelegramEventBus } from '../../core/telegram/services/telegram-events.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequireInstancePermission } from '../../common/authz/require-instance-permission.decorator';
 import { InstanceAccessGuard } from '../../common/authz/instance-access.guard';
 import type { SafeUser } from '../auth/auth.service';
-import { AddMemberDto } from './dto/add-member.dto';
 import { CreateInstanceDto } from './dto/create-instance.dto';
 import { PasswordDto } from './dto/password.dto';
+import { PhoneCodeDto } from './dto/phone-code.dto';
+import { PhoneDto } from './dto/phone.dto';
 import { SendMessageDto } from './dto/send-message.dto';
-import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
-import { InstanceMemberEntity } from './entities/member.entity';
 import {
   ChatEntity,
   InstanceEntity,
@@ -73,13 +71,17 @@ import {
   TelegramSettingsEntity,
 } from './entities/telegram.entity';
 import { OkResponseEntity } from '../auth/entities/auth.entity';
+import {
+  LoginPasswordResponseEntity,
+  PhoneLoginStepEntity,
+} from './entities/login.entity';
 import { MessagingService } from './messaging.service';
 
 @ApiTags('telegram')
 @ApiBearerAuth()
 @ApiSecurity('api-key')
 @ApiForbiddenResponse({
-  description: 'Caller lacks the required permission on this instance.',
+  description: 'Caller lacks the required dashboard permission.',
 })
 @ApiServiceUnavailableResponse({
   description:
@@ -92,7 +94,7 @@ export class TelegramController {
     private readonly telegram: TelegramManager,
     private readonly messaging: MessagingService,
     private readonly settings: SettingsService,
-    private readonly access: InstanceAccessService,
+    private readonly events: TelegramEventBus,
   ) {}
 
   @Get('settings')
@@ -138,6 +140,7 @@ export class TelegramController {
   }
 
   @Post('instances')
+  @RequireInstancePermission('instance:manage')
   @ApiOperation({
     summary: 'Create a Telegram instance',
     description:
@@ -158,8 +161,7 @@ export class TelegramController {
       dto.engine,
       { apiId: dto.apiId, apiHash: dto.apiHash },
     );
-    await this.access.grantOwner(instance.id, user.id);
-    return { ...instance, myRole: 'owner' as const };
+    return { ...instance, myRole: user.role };
   }
 
   @Get('instances')
@@ -168,11 +170,7 @@ export class TelegramController {
   async listInstances(@CurrentUser() user: SafeUser) {
     this.ensureEnabled();
     const instances = await this.telegram.listInstances();
-    const roles = await this.access.rolesFor(
-      user,
-      instances.map((i) => i.id),
-    );
-    return instances.map((i) => ({ ...i, myRole: roles.get(i.id) }));
+    return instances.map((i) => ({ ...i, myRole: user.role }));
   }
 
   @Get('instances/:id')
@@ -187,8 +185,7 @@ export class TelegramController {
     if (!instance) {
       throw new NotFoundException('Instance not found');
     }
-    const access = await this.access.resolve(user, id);
-    return { ...instance, myRole: access.role };
+    return { ...instance, myRole: user.role };
   }
 
   @Delete('instances/:id')
@@ -210,13 +207,13 @@ export class TelegramController {
   @ApiParam({ name: 'id', description: 'Instance id' })
   @ApiOkResponse({ type: InstanceInfoEntity })
   @ApiNotFoundResponse({ description: 'Instance not found' })
-  async instanceInfo(@Param('id') id: string) {
+  async instanceInfo(@CurrentUser() user: SafeUser, @Param('id') id: string) {
     this.ensureEnabled();
     const info = await this.telegram.instanceInfo(id);
     if (!info) {
       throw new NotFoundException('Instance not found');
     }
-    return info;
+    return { ...info, myRole: user.role };
   }
 
   @Post('instances/:id/start')
@@ -228,11 +225,43 @@ export class TelegramController {
   @ApiNotFoundResponse({ description: 'Instance not found' })
   async startInstance(@Param('id') id: string) {
     this.ensureEnabled();
-    const instance = await this.telegram.startInstance(id);
-    if (!instance) {
-      throw new NotFoundException('Instance not found');
+    try {
+      const instance = await this.telegram.startInstance(id);
+      if (!instance) {
+        throw new NotFoundException('Instance not found');
+      }
+      return instance;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      const message =
+        error instanceof Error ? error.message : 'Failed to start instance';
+      throw new BadRequestException(message);
     }
-    return instance;
+  }
+
+  @Sse('instances/status/stream')
+  @ApiOperation({
+    summary: 'Stream instance session status changes (SSE)',
+    description:
+      'Pushes `session.status` events whenever an instance connects, disconnects, errors or is revoked.',
+  })
+  @ApiProduces('text/event-stream')
+  statusStream(): Observable<MessageEvent> {
+    this.ensureEnabled();
+    return this.events.events$().pipe(
+      filter((event) => event.type === 'session.status'),
+      map(
+        (event): MessageEvent => ({
+          data: {
+            instanceId: event.instanceId,
+            at: event.at,
+            ...event.payload,
+          },
+        }),
+      ),
+    );
   }
 
   @Post('instances/:id/stop')
@@ -266,18 +295,67 @@ export class TelegramController {
   @Post('instances/:id/login/password')
   @RequireInstancePermission('instance:manage')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Submit the 2FA password for a pending QR login' })
+  @ApiOperation({
+    summary: 'Submit the 2FA password for a pending QR or phone login',
+  })
   @ApiParam({ name: 'id', description: 'Instance id' })
-  @ApiOkResponse({ type: OkResponseEntity })
-  submitPassword(@Param('id') id: string, @Body() dto: PasswordDto) {
+  @ApiOkResponse({ type: LoginPasswordResponseEntity })
+  async submitPassword(@Param('id') id: string, @Body() dto: PasswordDto) {
     this.ensureEnabled();
+    const isPhoneLogin = this.telegram.isPhoneLoginPending(id);
     const accepted = this.telegram.submitPassword(id, dto.password);
     if (!accepted) {
       throw new BadRequestException(
         'No password prompt is pending for this instance',
       );
     }
+    if (isPhoneLogin) {
+      const step = await this.telegram.awaitPhoneLoginAfterPassword(id);
+      if (step?.status === 'authorized') {
+        return { ok: true, me: step.me };
+      }
+    }
     return { ok: true };
+  }
+
+  @Post('instances/:id/login/phone')
+  @RequireInstancePermission('instance:manage')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Start phone-number login (Telegram sends a code to the app/SMS)',
+  })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiOkResponse({ type: OkResponseEntity })
+  async startPhoneLogin(@Param('id') id: string, @Body() dto: PhoneDto) {
+    this.ensureEnabled();
+    try {
+      await this.telegram.startPhoneLogin(id, dto.phone);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Phone login failed';
+      if (message === 'Instance not found') {
+        throw new NotFoundException(message);
+      }
+      throw new BadRequestException(message);
+    }
+    return { ok: true };
+  }
+
+  @Post('instances/:id/login/code')
+  @RequireInstancePermission('instance:manage')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Submit the OTP code for a pending phone login' })
+  @ApiParam({ name: 'id', description: 'Instance id' })
+  @ApiOkResponse({ type: PhoneLoginStepEntity })
+  async submitPhoneCode(@Param('id') id: string, @Body() dto: PhoneCodeDto) {
+    this.ensureEnabled();
+    try {
+      return await this.telegram.submitPhoneCode(id, dto.code);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Invalid or expired code';
+      throw new BadRequestException(message);
+    }
   }
 
   @Get('instances/:id/chats')
@@ -458,57 +536,6 @@ export class TelegramController {
       res,
       await this.messaging.messageMedia(id, chatId, messageId),
     );
-  }
-
-  // --- Members (per-instance access) ---
-
-  @Get('instances/:id/members')
-  @RequireInstancePermission('member:read')
-  @ApiOperation({ summary: 'List users with access to an instance' })
-  @ApiParam({ name: 'id', description: 'Instance id' })
-  @ApiOkResponse({ type: [InstanceMemberEntity] })
-  listMembers(@Param('id') id: string) {
-    this.ensureEnabled();
-    return this.access.listMembers(id);
-  }
-
-  @Post('instances/:id/members')
-  @RequireInstancePermission('member:manage')
-  @ApiOperation({
-    summary: 'Grant a user access to an instance (owner/operator/viewer)',
-  })
-  @ApiParam({ name: 'id', description: 'Instance id' })
-  @ApiCreatedResponse({ type: InstanceMemberEntity })
-  addMember(@Param('id') id: string, @Body() dto: AddMemberDto) {
-    this.ensureEnabled();
-    return this.access.addMember(id, dto.userId, dto.role);
-  }
-
-  @Patch('instances/:id/members/:userId')
-  @RequireInstancePermission('member:manage')
-  @ApiOperation({ summary: "Change a member's role on an instance" })
-  @ApiParam({ name: 'id', description: 'Instance id' })
-  @ApiParam({ name: 'userId', description: 'Member user id' })
-  @ApiOkResponse({ type: InstanceMemberEntity })
-  setMemberRole(
-    @Param('id') id: string,
-    @Param('userId') userId: string,
-    @Body() dto: UpdateMemberRoleDto,
-  ) {
-    this.ensureEnabled();
-    return this.access.setMemberRole(id, userId, dto.role);
-  }
-
-  @Delete('instances/:id/members/:userId')
-  @RequireInstancePermission('member:manage')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Revoke a user’s access to an instance' })
-  @ApiParam({ name: 'id', description: 'Instance id' })
-  @ApiParam({ name: 'userId', description: 'Member user id' })
-  @ApiNoContentResponse({ description: 'Removed' })
-  async removeMember(@Param('id') id: string, @Param('userId') userId: string) {
-    this.ensureEnabled();
-    await this.access.removeMember(id, userId);
   }
 
   /** Streams downloaded bytes with the right headers, or 404 when absent. */

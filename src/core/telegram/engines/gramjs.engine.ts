@@ -29,6 +29,7 @@ import {
   type NormalizedMessage,
   type NormalizedReaction,
   type PeerRef,
+  type PhoneCallbacks,
   type QrCallbacks,
   type TelegramMe,
   type UploadedMedia,
@@ -314,6 +315,28 @@ class GramJsClient implements EngineClient {
     return toMe(user);
   }
 
+  async phoneLogin(
+    phone: string,
+    callbacks: PhoneCallbacks,
+  ): Promise<TelegramMe> {
+    const user = await this.client.signInUser(
+      { apiId: this.apiId, apiHash: this.apiHash },
+      {
+        phoneNumber: () => Promise.resolve(phone),
+        phoneCode: async () => {
+          callbacks.onCodeSent();
+          return callbacks.onCodeRequired();
+        },
+        password: () => callbacks.onPasswordRequired(),
+        onError: (err: Error) => {
+          this.logger.error(`Phone login error: ${err.message}`);
+          return Promise.resolve(true);
+        },
+      },
+    );
+    return toMe(user);
+  }
+
   async listDialogs(limit = 50): Promise<DialogSnapshot[]> {
     const dialogs = await this.client.getDialogs({ limit });
     const out: DialogSnapshot[] = [];
@@ -477,6 +500,7 @@ export class GramJsEngine implements InstanceEngine {
   readonly key: EngineKey = 'gramjs';
   readonly capabilities: EngineCapabilities = {
     qrLogin: true,
+    phoneLogin: true,
     botToken: false,
     messaging: true,
   };

@@ -13,19 +13,17 @@ import {
   Server,
   Square,
   Trash2,
-  Users as UsersIcon,
   X,
 } from 'lucide-vue-next'
 import {
   api,
   type EngineKey,
   type InstanceInfo,
-  type InstanceMember,
-  type InstanceRole,
   type InstanceStatus,
+  type LoginMethod,
   type QrLoginEvent,
+  type SessionStatusEvent,
   type TelegramInstance,
-  type UserListItem,
 } from '@/lib/api'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
@@ -39,16 +37,14 @@ import CardContent from '@/components/ui/CardContent.vue'
 const { t, locale } = useI18n()
 const router = useRouter()
 
-const INSTANCE_ROLES: InstanceRole[] = ['owner', 'operator', 'viewer']
-
 /** Can perform operational actions (start/stop, send): operator and above. */
 function canOperate(inst: TelegramInstance): boolean {
-  return ['admin', 'owner', 'operator'].includes(inst.myRole ?? 'viewer')
+  return ['admin', 'operator'].includes(inst.myRole ?? 'viewer')
 }
 
-/** Can administer the instance (delete, manage members): owner and above. */
+/** Can delete instances: operator and above. */
 function canManage(inst: TelegramInstance): boolean {
-  return ['admin', 'owner'].includes(inst.myRole ?? 'viewer')
+  return ['admin', 'operator'].includes(inst.myRole ?? 'viewer')
 }
 
 const engines: { key: EngineKey; label: string; disabled?: boolean }[] = [
@@ -72,7 +68,37 @@ async function loadInstances() {
   }
 }
 
-onMounted(loadInstances)
+onMounted(() => {
+  void loadInstances()
+  connectStatusStream()
+})
+
+let statusStream: EventSource | null = null
+
+function connectStatusStream() {
+  statusStream?.close()
+  statusStream = api.instanceStatusStream()
+  statusStream.onmessage = (ev: MessageEvent<string>) => {
+    void handleStatusEvent(JSON.parse(ev.data) as SessionStatusEvent)
+  }
+}
+
+async function handleStatusEvent(event: SessionStatusEvent) {
+  const prev = instances.value.find((i) => i.id === event.instanceId)
+  await loadInstances()
+  if (
+    event.status === 'error' &&
+    prev &&
+    ['authorized', 'connecting'].includes(prev.status)
+  ) {
+    toast.error(
+      t('instances.sessionRevoked', {
+        label: prev.label,
+        message: event.message ?? t('instances.sessionRevokedDefault'),
+      }),
+    )
+  }
+}
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleString(locale.value)
@@ -89,6 +115,7 @@ const statusColor: Record<InstanceStatus, string> = {
   new: 'bg-muted text-muted-foreground',
   connecting: 'bg-amber-500/15 text-amber-600',
   awaiting_qr: 'bg-amber-500/15 text-amber-600',
+  awaiting_code: 'bg-amber-500/15 text-amber-600',
   password_required: 'bg-amber-500/15 text-amber-600',
   authorized: 'bg-green-500/15 text-green-600',
   disconnected: 'bg-muted text-muted-foreground',
@@ -182,10 +209,13 @@ function fmtUptime(seconds: number | null): string {
   return parts.join(' ')
 }
 
-// --- Add / QR login modal ---
+// --- Add / login modal ---
+
+type LoginPhase = 'form' | 'qr' | 'phone' | 'code' | 'password'
 
 const showModal = ref(false)
-const phase = ref<'form' | 'qr'>('form')
+const phase = ref<LoginPhase>('form')
+const loginMethod = ref<LoginMethod>('qr')
 const label = ref('')
 const engine = ref<EngineKey>('gramjs')
 const creating = ref(false)
@@ -193,11 +223,17 @@ const createError = ref('')
 
 const currentId = ref('')
 const qrDataUrl = ref('')
-const qrError = ref('')
+const loginError = ref('')
 const passwordRequired = ref(false)
 const password = ref('')
 const submittingPwd = ref(false)
 const authorizedName = ref('')
+
+const phoneNumber = ref('')
+const sendingPhone = ref(false)
+const phoneCode = ref('')
+const submittingCode = ref(false)
+const loginMode = ref<'qr' | 'phone'>('qr')
 
 let stream: EventSource | null = null
 let done = false
@@ -209,15 +245,28 @@ function closeStream() {
 
 function openAdd() {
   phase.value = 'form'
+  loginMethod.value = 'qr'
   label.value = ''
   engine.value = 'gramjs'
   createError.value = ''
+  loginError.value = ''
+  phoneNumber.value = ''
+  phoneCode.value = ''
+  passwordRequired.value = false
+  password.value = ''
+  authorizedName.value = ''
   showModal.value = true
 }
 
 function closeModal() {
   closeStream()
   showModal.value = false
+}
+
+function onAuthorized(me: { firstName?: string; username?: string; id: string }) {
+  authorizedName.value = me.firstName ?? me.username ?? me.id
+  void loadInstances()
+  toast.success(t('instances.authorized', { name: authorizedName.value }))
 }
 
 async function submitCreate() {
@@ -230,8 +279,13 @@ async function submitCreate() {
       engine: engine.value,
     })
     currentId.value = inst.id
-    startQr(inst.id)
-    phase.value = 'qr'
+    loginMode.value = loginMethod.value
+    if (loginMethod.value === 'qr') {
+      phase.value = 'qr'
+      startQr(inst.id)
+    } else {
+      phase.value = 'phone'
+    }
   } catch (e) {
     createError.value = e instanceof Error ? e.message : t('instances.createFailed')
   } finally {
@@ -239,10 +293,47 @@ async function submitCreate() {
   }
 }
 
+async function sendPhoneLogin() {
+  if (!phoneNumber.value.trim()) return
+  sendingPhone.value = true
+  loginError.value = ''
+  try {
+    await api.startPhoneLogin(currentId.value, phoneNumber.value.trim())
+    phase.value = 'code'
+    toast.success(t('instances.codeSent'))
+  } catch (e) {
+    loginError.value = e instanceof Error ? e.message : t('instances.actionFailed')
+  } finally {
+    sendingPhone.value = false
+  }
+}
+
+async function submitPhoneCode() {
+  if (!phoneCode.value.trim()) return
+  submittingCode.value = true
+  loginError.value = ''
+  try {
+    const step = await api.submitPhoneCode(
+      currentId.value,
+      phoneCode.value.trim(),
+    )
+    if (step.status === 'authorized' && step.me) {
+      onAuthorized(step.me)
+    } else {
+      phase.value = 'password'
+      passwordRequired.value = true
+    }
+  } catch (e) {
+    loginError.value = e instanceof Error ? e.message : t('instances.actionFailed')
+  } finally {
+    submittingCode.value = false
+  }
+}
+
 function startQr(id: string) {
   done = false
   qrDataUrl.value = ''
-  qrError.value = ''
+  loginError.value = ''
   passwordRequired.value = false
   password.value = ''
   submittingPwd.value = false
@@ -254,7 +345,7 @@ function startQr(id: string) {
   }
   stream.onerror = () => {
     if (!done) {
-      qrError.value = t('instances.listError')
+      loginError.value = t('instances.listError')
       done = true
       closeStream()
     }
@@ -264,7 +355,7 @@ function startQr(id: string) {
 async function handleEvent(event: QrLoginEvent) {
   switch (event.type) {
     case 'qr':
-      qrError.value = ''
+      loginError.value = ''
       qrDataUrl.value = await QRCode.toDataURL(event.url, {
         width: 224,
         margin: 1,
@@ -272,18 +363,16 @@ async function handleEvent(event: QrLoginEvent) {
       break
     case 'password_required':
       passwordRequired.value = true
+      phase.value = 'password'
       break
     case 'authorized':
       done = true
-      authorizedName.value =
-        event.me.firstName ?? event.me.username ?? event.me.id
       closeStream()
-      void loadInstances()
-      toast.success(t('instances.authorized', { name: authorizedName.value }))
+      onAuthorized(event.me)
       break
     case 'error':
       done = true
-      qrError.value = event.message
+      loginError.value = event.message
       closeStream()
       toast.error(event.message)
       break
@@ -294,103 +383,22 @@ async function submitPassword() {
   if (!password.value) return
   submittingPwd.value = true
   try {
-    await api.submitQrPassword(currentId.value, password.value)
-    passwordRequired.value = false
+    const res = await api.submitQrPassword(currentId.value, password.value)
+    if (loginMode.value === 'phone' && res.me) {
+      passwordRequired.value = false
+      onAuthorized(res.me)
+    } else {
+      passwordRequired.value = false
+    }
   } catch (e) {
-    qrError.value = e instanceof Error ? e.message : t('instances.errorPrefix')
+    loginError.value = e instanceof Error ? e.message : t('instances.errorPrefix')
   } finally {
     submittingPwd.value = false
   }
 }
 
-// --- Members modal ---
-
-const showMembers = ref(false)
-const membersInstance = ref<TelegramInstance | null>(null)
-const members = ref<InstanceMember[]>([])
-const allUsers = ref<UserListItem[]>([])
-const membersLoading = ref(false)
-const membersBusy = ref(false)
-const addUserId = ref('')
-const addRole = ref<InstanceRole>('operator')
-
-async function openMembers(inst: TelegramInstance) {
-  membersInstance.value = inst
-  showMembers.value = true
-  membersLoading.value = true
-  addUserId.value = ''
-  addRole.value = 'operator'
-  try {
-    ;[members.value, allUsers.value] = await Promise.all([
-      api.instanceMembers(inst.id),
-      api.users(),
-    ])
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : t('members.loadFailed'))
-  } finally {
-    membersLoading.value = false
-  }
-}
-
-function closeMembers() {
-  showMembers.value = false
-  membersInstance.value = null
-  members.value = []
-}
-
-// Users not yet members, eligible to be added.
-const addableUsers = () =>
-  allUsers.value.filter(
-    (u) => !members.value.some((m) => m.userId === u.id),
-  )
-
-async function addMember() {
-  if (!membersInstance.value || !addUserId.value) return
-  membersBusy.value = true
-  try {
-    await api.addInstanceMember(
-      membersInstance.value.id,
-      addUserId.value,
-      addRole.value,
-    )
-    members.value = await api.instanceMembers(membersInstance.value.id)
-    addUserId.value = ''
-    toast.success(t('members.added'))
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : t('members.actionFailed'))
-  } finally {
-    membersBusy.value = false
-  }
-}
-
-async function changeRole(m: InstanceMember, role: InstanceRole) {
-  if (!membersInstance.value) return
-  try {
-    const updated = await api.updateInstanceMemberRole(
-      membersInstance.value.id,
-      m.userId,
-      role,
-    )
-    m.role = updated.role
-    toast.success(t('members.updated'))
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : t('members.actionFailed'))
-  }
-}
-
-async function removeMember(m: InstanceMember) {
-  if (!membersInstance.value) return
-  if (!window.confirm(t('members.confirmRemove'))) return
-  try {
-    await api.removeInstanceMember(membersInstance.value.id, m.userId)
-    members.value = members.value.filter((x) => x.userId !== m.userId)
-    toast.success(t('members.removed'))
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : t('members.actionFailed'))
-  }
-}
-
 onUnmounted(() => {
+  statusStream?.close()
   closeStream()
   closeInfo()
 })
@@ -496,15 +504,6 @@ onUnmounted(() => {
                   v-if="canManage(inst)"
                   variant="ghost"
                   size="icon"
-                  :title="t('members.manage')"
-                  @click="openMembers(inst)"
-                >
-                  <UsersIcon class="h-4 w-4" />
-                </Button>
-                <Button
-                  v-if="canManage(inst)"
-                  variant="ghost"
-                  size="icon"
                   :title="t('instances.delete')"
                   @click="removeInstance(inst)"
                 >
@@ -568,6 +567,34 @@ onUnmounted(() => {
                   />
                 </div>
               </div>
+              <div class="grid gap-2">
+                <Label>{{ t('instances.loginMethod') }}</Label>
+                <div class="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    class="rounded-md border px-3 py-2 text-sm transition-colors"
+                    :class="loginMethod === 'qr'
+                      ? 'border-primary bg-primary/5 font-medium text-primary'
+                      : 'border-input text-muted-foreground hover:bg-muted/50'"
+                    @click="loginMethod = 'qr'"
+                  >
+                    {{ t('instances.loginQr') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded-md border px-3 py-2 text-sm transition-colors"
+                    :class="loginMethod === 'phone'
+                      ? 'border-primary bg-primary/5 font-medium text-primary'
+                      : 'border-input text-muted-foreground hover:bg-muted/50'"
+                    @click="loginMethod = 'phone'"
+                  >
+                    {{ t('instances.loginPhone') }}
+                  </button>
+                </div>
+                <p class="text-xs text-muted-foreground">
+                  {{ loginMethod === 'qr' ? t('instances.loginQrHint') : t('instances.loginPhoneHint') }}
+                </p>
+              </div>
               <p v-if="createError" class="text-sm text-destructive">{{ createError }}</p>
               <div class="flex justify-end gap-2">
                 <Button type="button" variant="outline" @click="closeModal">
@@ -579,7 +606,65 @@ onUnmounted(() => {
               </div>
             </form>
 
-            <!-- Phase 2: QR login -->
+            <!-- Phone: enter number -->
+            <form
+              v-else-if="phase === 'phone'"
+              class="grid gap-4"
+              @submit.prevent="sendPhoneLogin"
+            >
+              <p class="text-sm font-medium">{{ t('instances.phoneTitle') }}</p>
+              <p class="text-xs text-muted-foreground">{{ t('instances.phoneHint') }}</p>
+              <div class="grid gap-2">
+                <Label for="phone">{{ t('instances.phoneLabel') }}</Label>
+                <Input
+                  id="phone"
+                  v-model="phoneNumber"
+                  type="tel"
+                  placeholder="+5511999999999"
+                  autocomplete="tel"
+                />
+              </div>
+              <p v-if="loginError" class="text-sm text-destructive">{{ loginError }}</p>
+              <div class="flex justify-end gap-2">
+                <Button type="button" variant="outline" @click="closeModal">
+                  {{ t('common.cancel') }}
+                </Button>
+                <Button type="submit" :disabled="sendingPhone || !phoneNumber.trim()">
+                  {{ sendingPhone ? t('common.loading') : t('instances.sendCode') }}
+                </Button>
+              </div>
+            </form>
+
+            <!-- Phone: enter OTP -->
+            <form
+              v-else-if="phase === 'code'"
+              class="grid gap-4"
+              @submit.prevent="submitPhoneCode"
+            >
+              <p class="text-sm font-medium">{{ t('instances.codeTitle') }}</p>
+              <p class="text-xs text-muted-foreground">{{ t('instances.codeHint') }}</p>
+              <div class="grid gap-2">
+                <Label for="code">{{ t('instances.codeLabel') }}</Label>
+                <Input
+                  id="code"
+                  v-model="phoneCode"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  placeholder="12345"
+                />
+              </div>
+              <p v-if="loginError" class="text-sm text-destructive">{{ loginError }}</p>
+              <div class="flex justify-end gap-2">
+                <Button type="button" variant="outline" @click="closeModal">
+                  {{ t('common.cancel') }}
+                </Button>
+                <Button type="submit" :disabled="submittingCode || !phoneCode.trim()">
+                  {{ submittingCode ? t('common.loading') : t('instances.verifyCode') }}
+                </Button>
+              </div>
+            </form>
+
+            <!-- QR login or shared 2FA / success -->
             <div v-else class="flex flex-col items-center gap-3 text-center">
               <template v-if="authorizedName">
                 <p class="text-sm font-medium text-green-600">
@@ -588,7 +673,7 @@ onUnmounted(() => {
                 <Button @click="closeModal">{{ t('common.cancel') }}</Button>
               </template>
 
-              <template v-else-if="passwordRequired">
+              <template v-else-if="passwordRequired || phase === 'password'">
                 <p class="text-sm font-medium">{{ t('instances.passwordTitle') }}</p>
                 <p class="text-xs text-muted-foreground">{{ t('instances.passwordHint') }}</p>
                 <form class="flex w-full gap-2" @submit.prevent="submitPassword">
@@ -597,10 +682,10 @@ onUnmounted(() => {
                     {{ t('instances.submitPassword') }}
                   </Button>
                 </form>
-                <p v-if="qrError" class="text-sm text-destructive">{{ qrError }}</p>
+                <p v-if="loginError" class="text-sm text-destructive">{{ loginError }}</p>
               </template>
 
-              <template v-else>
+              <template v-else-if="phase === 'qr'">
                 <p class="text-sm font-medium">{{ t('instances.qrTitle') }}</p>
                 <img
                   v-if="qrDataUrl"
@@ -612,8 +697,8 @@ onUnmounted(() => {
                   {{ t('instances.qrWaiting') }}
                 </p>
                 <p class="max-w-xs text-xs text-muted-foreground">{{ t('instances.qrHint') }}</p>
-                <p v-if="qrError" class="text-sm text-destructive">
-                  {{ t('instances.errorPrefix') }}: {{ qrError }}
+                <p v-if="loginError" class="text-sm text-destructive">
+                  {{ t('instances.errorPrefix') }}: {{ loginError }}
                 </p>
               </template>
             </div>
@@ -676,96 +761,6 @@ onUnmounted(() => {
               <dt class="text-muted-foreground">{{ t('instances.infoUptime') }}</dt>
               <dd class="col-span-2 font-medium">{{ fmtUptime(info.uptimeSeconds) }}</dd>
             </dl>
-          </CardContent>
-        </Card>
-      </div>
-    </Teleport>
-
-    <!-- Members panel -->
-    <Teleport to="body">
-      <div
-        v-if="showMembers"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-        @click.self="closeMembers"
-      >
-        <Card class="w-full max-w-lg">
-          <CardHeader class="flex-row items-start justify-between">
-            <div>
-              <CardTitle class="flex items-center gap-2 text-base">
-                <UsersIcon class="h-4 w-4" /> {{ t('members.title') }}
-              </CardTitle>
-              <CardDescription>
-                {{ membersInstance?.label }} — {{ t('members.subtitle') }}
-              </CardDescription>
-            </div>
-            <Button variant="ghost" size="icon" @click="closeMembers">
-              <X class="h-4 w-4" />
-            </Button>
-          </CardHeader>
-          <CardContent class="space-y-4">
-            <p v-if="membersLoading" class="py-6 text-center text-sm text-muted-foreground">
-              {{ t('common.loading') }}
-            </p>
-            <template v-else>
-              <!-- Existing members -->
-              <ul class="divide-y rounded-md border">
-                <li v-if="!members.length" class="px-3 py-4 text-center text-sm text-muted-foreground">
-                  {{ t('members.empty') }}
-                </li>
-                <li
-                  v-for="m in members"
-                  :key="m.userId"
-                  class="flex items-center gap-2 px-3 py-2"
-                >
-                  <div class="min-w-0 flex-1">
-                    <p class="truncate text-sm font-medium">{{ m.username }}</p>
-                    <p class="truncate text-xs text-muted-foreground">{{ m.email }}</p>
-                  </div>
-                  <select
-                    :value="m.role"
-                    class="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                    @change="changeRole(m, ($event.target as HTMLSelectElement).value as InstanceRole)"
-                  >
-                    <option v-for="r in INSTANCE_ROLES" :key="r" :value="r">
-                      {{ t(`roles.${r}`) }}
-                    </option>
-                  </select>
-                  <Button variant="ghost" size="icon" :title="t('members.remove')" @click="removeMember(m)">
-                    <Trash2 class="h-4 w-4 text-destructive" />
-                  </Button>
-                </li>
-              </ul>
-
-              <!-- Add member -->
-              <div class="flex items-end gap-2 border-t pt-4">
-                <div class="grid flex-1 gap-1">
-                  <Label class="text-xs">{{ t('members.addUser') }}</Label>
-                  <select
-                    v-model="addUserId"
-                    class="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-                  >
-                    <option value="" disabled>{{ t('members.selectUser') }}</option>
-                    <option v-for="u in addableUsers()" :key="u.id" :value="u.id">
-                      {{ u.username }} ({{ u.email }})
-                    </option>
-                  </select>
-                </div>
-                <div class="grid gap-1">
-                  <Label class="text-xs">{{ t('members.role') }}</Label>
-                  <select
-                    v-model="addRole"
-                    class="h-9 rounded-md border border-input bg-background px-2 text-sm"
-                  >
-                    <option v-for="r in INSTANCE_ROLES" :key="r" :value="r">
-                      {{ t(`roles.${r}`) }}
-                    </option>
-                  </select>
-                </div>
-                <Button :disabled="!addUserId || membersBusy" @click="addMember">
-                  {{ t('members.add') }}
-                </Button>
-              </div>
-            </template>
           </CardContent>
         </Card>
       </div>

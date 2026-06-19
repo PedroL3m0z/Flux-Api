@@ -7,9 +7,9 @@ export const INSTANCE_PERMISSION_KEY = 'instancePermission';
 export const INSTANCE_ID_PARAM_KEY = 'instanceIdParam';
 
 /**
- * Requires a permission on the instance referenced by a route param.
- * The `InstanceAccessGuard` reads this metadata, resolves the caller's access
- * and rejects with 403 when the permission is missing.
+ * Requires a permission on instance-scoped routes. Authorization uses the
+ * caller's global dashboard role (see {@link AccessService}), not membership
+ * on the instance referenced by the route param.
  */
 export function RequireInstancePermission(
   permission: Permission,

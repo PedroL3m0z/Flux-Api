@@ -48,6 +48,8 @@ COPY --from=builder /app/client/dist ./client/dist
 # Schema + migrations + prisma config for `prisma migrate deploy` at startup.
 COPY --from=builder /app/src/core/prisma ./src/core/prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
+# prisma.config.ts imports the zero-config DATABASE_URL derivation from here.
+COPY --from=builder /app/src/config ./src/config
 
 # Entrypoint runs migrations, then starts the app.
 COPY docker-entrypoint.sh ./
