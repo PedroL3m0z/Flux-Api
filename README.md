@@ -498,13 +498,19 @@ Vue 3 + TypeScript + Tailwind, servido em `/dashboard`.
 git clone https://github.com/PedroL3m0z/Flux-Api.git
 cd flux-api
 
+# Opcional: a app sobe sem .env. Copie só se quiser sobrescrever algo.
 cp .env.example .env
-# Edite: JWT_SECRET, API_KEY (gere com `openssl rand -hex 32`),
-#        TELEGRAM_SESSION_SECRET (para cifrar sessões)
 
 yarn install
 yarn prisma:generate
 ```
+
+> **Configuração mínima (zero-config).** Sem nenhuma variável definida, a app
+> deriva a `DATABASE_URL` do Postgres do compose e **gera segredos fortes**
+> (`JWT_SECRET`, `API_KEY`, `TELEGRAM_SESSION_SECRET`) no primeiro boot,
+> salvando-os em `./data/secrets.json` (`DATA_DIR`). A `API_KEY` gerada é
+> exibida no log **uma única vez** — guarde-a. Defina qualquer variável no
+> `.env` para sobrescrever os valores automáticos.
 
 ### Rodar com Docker (recomendado)
 
@@ -594,20 +600,32 @@ flux-api/
 
 ## Variáveis de ambiente
 
-| Variável                  | Obrigatória | Descrição                                                  |
-| ------------------------- | ----------- | ---------------------------------------------------------- |
-| `DATABASE_URL`            | sim         | URL do PostgreSQL                                          |
-| `REDIS_URL`               | sim         | URL do Redis (sessões)                                     |
-| `JWT_SECRET`              | sim         | Segredo de assinatura do JWT                               |
-| `JWT_EXPIRES_IN`          | não         | Validade do token (default `3600s`)                       |
-| `API_KEY`                 | sim         | Chave estática do header `x-api-key`                      |
-| `TELEGRAM_API_ID`         | não\*       | api_id default do GramJS (\*ou por instância / settings)   |
-| `TELEGRAM_API_HASH`       | não\*       | api_hash default do GramJS                                |
-| `TELEGRAM_SESSION_SECRET` | recomendada | Cifra as sessões salvas (sem ela, ficam em texto puro)    |
-| `CORS_ORIGIN`             | não         | Whitelist de origins (default `*`)                        |
-| `COOKIE_SECURE`           | não         | `true` para cookie `Secure` (atrás de TLS)               |
-| `PORT`                    | não         | Porta HTTP (default `3000`)                               |
-| `NODE_ENV`                | não         | `development` / `production`                              |
+> **Nenhuma variável é obrigatória.** Os campos abaixo são autoderivados ou
+> autogerados quando ausentes. Defina apenas o que quiser fixar.
+
+| Variável                  | Default / comportamento                                              |
+| ------------------------- | ------------------------------------------------------------------- |
+| `DATABASE_URL`            | Derivada de `POSTGRES_*` / defaults do compose quando vazia          |
+| `POSTGRES_USER/PASSWORD/DB` | `flux`/`flux`/`flux` (compose + montagem da `DATABASE_URL`)        |
+| `REDIS_HOST` / `REDIS_PORT` | `localhost` / `6379`                                              |
+| `REDIS_PASSWORD`          | vazio (sem auth)                                                     |
+| `JWT_SECRET`              | **Autogerado** (CSPRNG) e persistido em `DATA_DIR` se vazio          |
+| `API_KEY`                 | **Autogerada** e exibida no log uma vez se vazia (header `x-api-key`)|
+| `TELEGRAM_SESSION_SECRET` | **Autogerado**; cifra sessões/segredos em repouso (AES-256-GCM)     |
+| `DATA_DIR`                | Onde os segredos autogerados são salvos (default `./data`)           |
+| `JWT_EXPIRES_IN`          | Validade do token (default `3600s`)                                  |
+| `SEED_EMAIL/USERNAME/PASSWORD` | Cria um admin no 1º boot quando os três são definidos           |
+| `TELEGRAM_API_ID/HASH`    | api_id/api_hash default do GramJS (ou por instância / settings)      |
+| `CORS_ORIGIN`             | Whitelist de origins (default `*`)                                   |
+| `COOKIE_SECURE`           | `true` para cookie `Secure` (atrás de TLS)                          |
+| `PORT`                    | Porta HTTP (default `3000`)                                          |
+| `NODE_ENV`                | `development` / `production`                                         |
+
+> **Segurança:** segredos autogerados usam CSPRNG e ficam em `DATA_DIR`
+> (`secrets.json`, permissão `600`) — monte um volume persistente para que não
+> rotacionem a cada restart. Placeholders fracos de templates antigos
+> (ex.: `change-me-...`) são tratados como vazios e substituídos por valores
+> fortes. Em produção, sirva atrás de TLS e restrinja `CORS_ORIGIN`.
 
 ---
 

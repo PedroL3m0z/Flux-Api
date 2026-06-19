@@ -1,4 +1,4 @@
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -8,6 +8,7 @@ import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { resolveCorsOrigin } from './config/cors';
+import { bootstrapRuntimeConfig } from './config/runtime-config';
 import { API_KEY_HEADER } from './modules/auth/strategies/api-key.strategy';
 
 // Telegram ids are int64 (BigInt), which JSON.stringify can't serialize.
@@ -19,8 +20,30 @@ import { API_KEY_HEADER } from './modules/auth/strategies/api-key.strategy';
 };
 
 async function bootstrap() {
+  // Resolve DATABASE_URL and the managed secrets (generating + persisting them
+  // when absent) before Nest reads the environment, so the app boots with
+  // near-zero configuration without weakening security.
+  const runtime = bootstrapRuntimeConfig();
+
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
+
+  const bootLogger = new Logger('Bootstrap');
+  if (runtime.databaseUrlDerived) {
+    bootLogger.warn(
+      'DATABASE_URL not set — using a derived default (bundled Postgres). Set it explicitly for external databases.',
+    );
+  }
+  if (runtime.generated.length > 0) {
+    bootLogger.warn(
+      `Generated missing secret(s) [${runtime.generated.join(', ')}] and stored them at ${runtime.secretsPath} (keep this file safe and persistent).`,
+    );
+  }
+  if (runtime.generatedApiKey) {
+    bootLogger.warn(
+      `Generated API key (shown once — store it now): ${runtime.generatedApiKey}`,
+    );
+  }
 
   // Parse cookies so the JWT can be read from an httpOnly cookie.
   app.use(cookieParser());
