@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+* **config:** near zero-config boot — `DATABASE_URL` is derived from `POSTGRES_*`/defaults and `JWT_SECRET`/`API_KEY`/`TELEGRAM_SESSION_SECRET` are auto-generated with a CSPRNG and persisted to `DATA_DIR/secrets.json` (0600) when unset. The generated API key is logged once; known weak placeholders are treated as unset. No environment variable is required anymore.
 * **authz:** role-based access control with a global role (`admin`/`member`) and per-instance roles (`owner`/`operator`/`viewer`); `InstanceAccessGuard` + `@RequireInstancePermission` for instance-scoped routes and `RolesGuard` + `@Roles` for global ones. Adds instance member management (`/telegram/instances/:id/members`), global role updates (`PATCH /users/:id/role`), `myRole` on instance responses and `webhook:manage` enforcement on instance links.
 * **telegram:** media send/download (photo/video/document + avatars), cursor-paginated history, API-key gate and UI polish.
 * **events:** engine-agnostic event system over an in-process bus (`session.status`, `message.new`/`edited`/`deleted`/`read`/`reaction`); engine `onEvent` replaces `onMessage`.

@@ -60,6 +60,10 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-flux}:${POSTGRES_PASSWORD:-flux}@postgres:5432/${POSTGRES_DB:-flux}?schema=public
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      # Where auto-generated secrets are persisted (mounted volume below) so they
+      # stay stable across container recreations. Without this, JWT/API key would
+      # rotate on every recreate and invalidate sessions.
+      DATA_DIR: /data
       # Optional: seed an initial user on first boot (set these in .env).
       # The x-api-key is the API_KEY from .env (already passed via env_file).
       SEED_EMAIL: ${SEED_EMAIL:-}
@@ -72,12 +76,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - flux_data:/data
     networks:
       - flux
 
 volumes:
   postgres_data:
   redis_data:
+  flux_data:
 
 networks:
   flux:
