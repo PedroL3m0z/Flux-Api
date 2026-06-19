@@ -161,6 +161,22 @@ describe('TelegramManager', () => {
     expect(session.deleteSession).toHaveBeenCalledWith('i1');
   });
 
+  it('marks the instance errored when the saved session is no longer authorized', async () => {
+    const { manager, instances, session, client } = make();
+    instances.list.mockResolvedValue([instance]);
+    session.loadSession.mockResolvedValue('SESSION');
+    client.isAuthorized.mockResolvedValue(false);
+
+    await manager.onApplicationBootstrap();
+
+    expect(instances.update).toHaveBeenCalledWith(
+      'i1',
+      expect.objectContaining({ status: 'error' }),
+    );
+    expect(session.deleteSession).toHaveBeenCalledWith('i1');
+    expect(manager.getClient('i1')).toBeUndefined();
+  });
+
   it('disconnects the client and clears the session when removing', async () => {
     const { manager, instances, session, client } = make();
     instances.list.mockResolvedValue([instance]);
