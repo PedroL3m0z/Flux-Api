@@ -42,6 +42,10 @@ lerna-debug.log*
 .env.production.local
 .env.local
 
+# Auto-generated runtime secrets and persisted data
+/data
+secrets.json
+
 # Prisma generated client
 /src/core/prisma/generated
 
