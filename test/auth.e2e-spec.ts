@@ -48,6 +48,11 @@ describe('Auth (e2e)', () => {
 
     const seeded = await app.get(AuthService).register(boot);
     createdIds.push(seeded.id);
+    // Mirror the env seed: the bootstrap user is the admin who manages others.
+    await prisma.user.update({
+      where: { id: seeded.id },
+      data: { role: 'admin' },
+    });
   });
 
   afterAll(async () => {
@@ -73,10 +78,11 @@ describe('Auth (e2e)', () => {
     expect(typeof token).toBe('string');
   });
 
-  it('creates another user when authenticated (no password leak)', async () => {
+  it('creates another user as admin (no password leak)', async () => {
     const res = await request(app.getHttpServer())
       .post('/auth/register')
       .set('Authorization', `Bearer ${token}`)
+      .set('x-api-key', apiKey ?? '')
       .send(created)
       .expect(201);
     const body = res.body as { id: string; username: string };
@@ -89,8 +95,27 @@ describe('Auth (e2e)', () => {
     await request(app.getHttpServer())
       .post('/auth/register')
       .set('Authorization', `Bearer ${token}`)
+      .set('x-api-key', apiKey ?? '')
       .send(created)
       .expect(409);
+  });
+
+  it('forbids a non-admin from registering users (403)', async () => {
+    const login = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ username: created.username, password: created.password })
+      .expect(200);
+    const viewerToken = (login.body as { accessToken: string }).accessToken;
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .set('x-api-key', apiKey ?? '')
+      .send({
+        email: `extra_${tag}@flux.dev`,
+        username: `extra_${tag}`,
+        password: 'S3cureP@ss',
+      })
+      .expect(403);
   });
 
   it('accesses /auth/me with the token, 401 without', async () => {
