@@ -48,6 +48,22 @@ function canManage(inst: TelegramInstance): boolean {
   return ['admin', 'operator'].includes(inst.myRole ?? 'viewer')
 }
 
+/** Statuses with no usable session — a fresh QR/phone login is needed.
+ *  Excludes `disconnected` (stopped but session kept → use Start) and the
+ *  running/connecting states. */
+const NEEDS_LOGIN_STATUSES: InstanceStatus[] = [
+  'new',
+  'awaiting_qr',
+  'awaiting_code',
+  'password_required',
+  'error',
+]
+
+/** Whether to offer the Connect (re-login) action for this instance. */
+function needsLogin(inst: TelegramInstance): boolean {
+  return canOperate(inst) && NEEDS_LOGIN_STATUSES.includes(inst.status)
+}
+
 const engines: { key: EngineKey; label: string; disabled?: boolean }[] = [
   { key: 'gramjs', label: 'GramJS' },
   { key: 'telegraf', label: 'Telegraf', disabled: true },
@@ -540,7 +556,7 @@ onUnmounted(() => {
                   <Play class="h-4 w-4 text-green-600" />
                 </Button>
                 <Button
-                  v-if="canOperate(inst) && inst.status !== 'authorized'"
+                  v-if="needsLogin(inst)"
                   variant="ghost"
                   size="icon"
                   :title="t('instances.connectAction')"
