@@ -672,6 +672,7 @@ docker run -d \
 - **API (OpenAPI)**: `/docs` — Scalar UI
 - **Guia do dashboard**: seção "Ajuda" no app
 - **Contribuição**: [CONTRIBUTING.md](./.github/CONTRIBUTING.md)
+- **Branches & fluxo Git**: [BRANCHING.md](./.github/BRANCHING.md)
 - **Código de Conduta**: [CODE_OF_CONDUCT.md](./.github/CODE_OF_CONDUCT.md)
 - **Segurança**: [SECURITY.md](./.github/SECURITY.md)
 - **Manutenção/Releases**: [docs/MAINTAINING.md](./docs/MAINTAINING.md)
