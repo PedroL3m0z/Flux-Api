@@ -16,11 +16,23 @@ yarn start:dev
 
 ## Workflow
 
-1. Fork the repo and create a branch from `main`:
-   `git checkout -b feat/my-feature`
-2. Make your changes. Keep PRs focused and small.
+We use **GitHub Flow** (trunk-based): one protected `main` branch, short-lived
+feature branches, squash-merge PRs. There is **no** `develop` branch. Full rules,
+naming conventions, release flow, and anti-patterns are in
+**[BRANCHING.md](./BRANCHING.md)**.
+
+1. Update `main` and branch from it (never from another feature branch):
+   ```bash
+   git checkout main && git pull origin main
+   git checkout -b feat/my-feature
+   ```
+2. Make your changes. Keep PRs focused and small — **one PR per concern**.
 3. Ensure the project builds, lints, and tests pass (see below).
-4. Open a Pull Request using the template. Link related issues.
+4. Open a Pull Request **into `main`** using the template. Link related issues.
+5. After merge, **delete the branch**. Close any superseded/duplicate PRs.
+
+> **Do not** open stacked PRs (base = another `feat/*` branch). **Do not** merge
+> two PRs for the same work — close the stale one first.
 
 ## Quality gates
 

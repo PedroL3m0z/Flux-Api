@@ -1,7 +1,8 @@
 # Maintainer Guide
 
 Operational runbook for maintainers of Flux API. For contributor workflow
-(branches, commit style, quality gates) see [CONTRIBUTING.md](../.github/CONTRIBUTING.md).
+(branches, commit style, quality gates) see [CONTRIBUTING.md](../.github/CONTRIBUTING.md)
+and the branching model in [BRANCHING.md](../.github/BRANCHING.md).
 
 All commands assume the [GitHub CLI](https://cli.github.com/) (`gh`) is
 installed and authenticated (`gh auth status`).
@@ -21,8 +22,11 @@ installed and authenticated (`gh auth status`).
 
 ### Standard change flow
 
+See **[BRANCHING.md](../.github/BRANCHING.md)** for the full model (GitHub Flow +
+release-please, not classical GitFlow).
+
 ```bash
-git checkout main && git pull
+git checkout main && git pull origin main
 git checkout -b feat/my-change
 # ...edit, commit (Conventional Commits)...
 git push -u origin feat/my-change
@@ -30,6 +34,10 @@ gh pr create --base main --fill
 gh pr checks <PR#> --watch          # wait for build-test
 gh pr merge <PR#> --squash --delete-branch
 ```
+
+**Never** target another feature branch with a PR — always `main`. After merging
+a superseding PR, close older/conflicting PRs for the same work (see anti-patterns
+in BRANCHING.md).
 
 If `main` moved while your PR was open (e.g. Dependabot landed), rebase:
 
@@ -55,9 +63,10 @@ Releases are automated by **release-please**
 3. **Merging that release PR** creates the git tag `vX.Y.Z` and publishes a
    GitHub Release.
 
-Only `feat:` and `fix:` commits trigger a release. Pre-1.0 bumping:
-`feat:` → patch, breaking change → minor (configured in
-`release-please-config.json`).
+Only `feat:` and `fix:` commits trigger a release. Post-1.0 bumping follows
+semver via release-please defaults (`feat:` → minor, `fix:` → patch, breaking
+→ major). Pre-1.0 behaviour was configured in `release-please-config.json`
+(`bump-minor-pre-major`).
 
 ### Merging the release PR — the GITHUB_TOKEN caveat
 
@@ -139,11 +148,35 @@ locally as in section 1.
 
 ---
 
-## 5. Reference — current repo settings
+## 6. Stale branch cleanup
+
+After merges, delete remote feature branches. A large pile of old `feat/*`
+branches makes it easy to reopen a stale PR (see PR #40 duplicate merge incident
+in [BRANCHING.md](../.github/BRANCHING.md)).
+
+List remote branches:
+
+```bash
+git fetch --prune
+gh api repos/PedroL3m0z/Flux-Api/branches --paginate --jq '.[].name'
+```
+
+Delete a merged branch (example):
+
+```bash
+gh api -X DELETE repos/PedroL3m0z/Flux-Api/git/refs/heads/feat/old-branch
+```
+
+Or use GitHub → **Branches** → delete merged branches in bulk.
+
+---
+
+## 7. Reference — current repo settings
 
 | Setting              | Value                                            |
 | -------------------- | ------------------------------------------------ |
 | Default branch       | `main` (protected)                               |
+| Branching model      | GitHub Flow — see [BRANCHING.md](../.github/BRANCHING.md) |
 | Required CI check    | `build-test`                                     |
 | Required reviews     | 0 (CI gate only)                                 |
 | License              | Apache-2.0                                        |

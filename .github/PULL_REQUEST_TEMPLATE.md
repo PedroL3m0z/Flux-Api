@@ -23,6 +23,8 @@
 
 ## Checklist
 
+- [ ] Branch is based on latest `main` (not another feature branch) — see [BRANCHING.md](./BRANCHING.md)
+- [ ] No duplicate/open PR exists for the same change set
 - [ ] Code builds (`yarn build`) and lints (`yarn lint`)
 - [ ] Tests pass (`yarn test` / `yarn test:e2e`)
 - [ ] Prisma schema changes include a migration (`yarn prisma:migrate`)
