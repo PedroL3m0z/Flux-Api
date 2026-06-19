@@ -5,6 +5,14 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0](https://github.com/PedroL3m0z/Flux-Api/compare/v0.1.5...v1.0.0) (2026-06-19)
+
+
+### Features
+
+* chat media, events, webhooks and RBAC ([#38](https://github.com/PedroL3m0z/Flux-Api/issues/38)) ([e02a439](https://github.com/PedroL3m0z/Flux-Api/commit/e02a439f8d7761ab6e5ad9f0b2fc137cdbade2a2))
+* **config:** near zero-config boot with auto-generated secrets ([#41](https://github.com/PedroL3m0z/Flux-Api/issues/41)) ([fed9649](https://github.com/PedroL3m0z/Flux-Api/commit/fed9649845a613179c9e7d0df370b9e4e3db3beb))
+
 ## [Unreleased]
 
 ### Features
