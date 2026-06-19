@@ -132,6 +132,7 @@ export default {
     connectAction: 'Conectar',
     connectTitle: 'Conectar instância',
     connectDesc: 'Faça login em "{label}" com QR code ou telefone.',
+    credsMissing: 'Defina o api_id e api_hash do Telegram em Configurações — o login falhará sem eles.',
     colLabel: 'Rótulo',
     colEngine: 'Engine',
     colStatus: 'Status',

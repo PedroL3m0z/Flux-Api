@@ -256,7 +256,21 @@ function resetLoginState() {
   authorizedName.value = ''
 }
 
+/** Warns (toast) when global api_id/api_hash are missing — login will fail
+ *  without them. Non-blocking: the modal still opens. */
+async function warnIfNoCreds() {
+  try {
+    const s = await api.getSettings()
+    if (!s.apiId || !s.hasApiHash) {
+      toast.warning(t('instances.credsMissing'))
+    }
+  } catch {
+    /* settings load failed; ignore here */
+  }
+}
+
 function openAdd() {
+  void warnIfNoCreds()
   modalMode.value = 'create'
   phase.value = 'form'
   label.value = ''
@@ -268,6 +282,7 @@ function openAdd() {
 /** Re-open the login flow for an instance that already exists (failed/abandoned
  *  QR or phone login leaves it without a valid session). */
 function openConnect(inst: TelegramInstance) {
+  void warnIfNoCreds()
   modalMode.value = 'connect'
   phase.value = 'form'
   currentId.value = inst.id
