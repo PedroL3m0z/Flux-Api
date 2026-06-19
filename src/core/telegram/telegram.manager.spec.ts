@@ -249,5 +249,17 @@ describe('TelegramManager', () => {
       expect(session.saveSession).toHaveBeenCalledWith('i1', 'SAVED_SESSION');
       expect(manager.getClient('i1')).toBe(client);
     });
+
+    it('rejects when sending the code fails before it is dispatched', async () => {
+      const { manager, instances, client } = make();
+      instances.get.mockResolvedValue(instance);
+      // Telegram refuses to send the code (e.g. invalid api_id / phone, flood).
+      client.phoneLogin.mockRejectedValue(new Error('PHONE_NUMBER_INVALID'));
+
+      await expect(
+        manager.startPhoneLogin('i1', '+5585991347698'),
+      ).rejects.toThrow('PHONE_NUMBER_INVALID');
+      expect(instances.update).toHaveBeenCalledWith('i1', { status: 'error' });
+    });
   });
 });
