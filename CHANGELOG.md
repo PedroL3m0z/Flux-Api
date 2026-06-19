@@ -5,6 +5,18 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0](https://github.com/PedroL3m0z/Flux-Api/compare/v1.0.0...v1.1.0) (2026-06-19)
+
+
+### Features
+
+* **config:** near zero-config boot ([#40](https://github.com/PedroL3m0z/Flux-Api/issues/40)) ([f001b80](https://github.com/PedroL3m0z/Flux-Api/commit/f001b804f60335fc378f84883d0d00d906e67ea4))
+
+
+### Bug Fixes
+
+* **release:** revert duplicate PR [#40](https://github.com/PedroL3m0z/Flux-Api/issues/40) merge ([#43](https://github.com/PedroL3m0z/Flux-Api/issues/43)) ([356f6af](https://github.com/PedroL3m0z/Flux-Api/commit/356f6aff3be9488024492fbab07c6e49a0b86978))
+
 ## [1.0.0](https://github.com/PedroL3m0z/Flux-Api/compare/v0.1.5...v1.0.0) (2026-06-19)
 
 
