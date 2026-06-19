@@ -25,6 +25,7 @@ const { t } = useI18n()
 const iconUrl = `${import.meta.env.BASE_URL}icon.png`
 const version = __APP_VERSION__
 const repoUrl = 'https://github.com/PedroL3m0z/Flux-Api'
+const authorUrl = 'https://github.com/PedroL3m0z'
 
 const collapsed = ref(localStorage.getItem('sidebar-collapsed') === 'true')
 function toggle() {
@@ -92,6 +93,16 @@ async function onLogout() {
             <Github class="h-3.5 w-3.5" />
           </a>
         </div>
+        <a
+          v-if="!collapsed"
+          :href="authorUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Pedro Lemos"
+          class="block text-center text-[10px] text-muted-foreground/60 transition-colors hover:text-foreground"
+        >
+          {{ t('common.madeBy') }} Pedro Lemos
+        </a>
       </div>
     </aside>
 

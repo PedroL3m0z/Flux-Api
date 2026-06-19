@@ -12,9 +12,12 @@ import { ConfigService } from '@nestjs/config';
 import {
   ApiBearerAuth,
   ApiBody,
+  ApiCreatedResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiSecurity,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { AuthService, type SafeUser } from './auth.service';
@@ -28,6 +31,11 @@ import {
 } from './auth.cookie';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import {
+  LoginResponseEntity,
+  OkResponseEntity,
+  UserEntity,
+} from './entities/auth.entity';
 import { ApiKeyAuthGuard } from './guards/api-key-auth.guard';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 
@@ -59,6 +67,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'Create a user (JWT protected; the seeded user creates others)',
   })
+  @ApiCreatedResponse({ type: UserEntity })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
@@ -72,6 +81,8 @@ export class AuthController {
     summary:
       'Login with username/email + password; sets an httpOnly JWT cookie',
   })
+  @ApiOkResponse({ type: LoginResponseEntity })
+  @ApiUnauthorizedResponse({ description: 'Invalid credentials' })
   async login(
     @CurrentUser() user: SafeUser,
     @Res({ passthrough: true }) res: Response,
@@ -85,6 +96,7 @@ export class AuthController {
   @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Clear the auth cookie' })
+  @ApiOkResponse({ type: OkResponseEntity })
   logout(@Res({ passthrough: true }) res: Response) {
     res.clearCookie(ACCESS_TOKEN_COOKIE, { path: '/' });
     return { ok: true };
@@ -96,6 +108,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'Current user (JWT protected; no API key required)',
   })
+  @ApiOkResponse({ type: UserEntity })
   me(@CurrentUser() user: SafeUser) {
     return user;
   }
@@ -104,7 +117,13 @@ export class AuthController {
   @Public()
   @UseGuards(ApiKeyAuthGuard)
   @ApiSecurity('api-key')
-  @ApiOperation({ summary: 'Example route protected by static API key' })
+  @ApiOperation({
+    summary: 'Validate the static API key',
+    description:
+      'Returns 200 when the x-api-key header is accepted by the gateway; otherwise 401.',
+  })
+  @ApiOkResponse({ schema: { example: { ok: true, via: 'api-key' } } })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid API key' })
   apiKeyCheck() {
     return { ok: true, via: 'api-key' };
   }

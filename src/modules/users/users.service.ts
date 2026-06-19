@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../core/prisma/prisma.service';
-import type { User } from '../../core/prisma/generated/client';
+import type { Role, User } from '../../core/prisma/generated/client';
 
 @Injectable()
 export class UsersService {
@@ -40,8 +40,33 @@ export class UsersService {
   /** All users, newest first, without the password field. */
   async findAll() {
     return this.prisma.user.findMany({
-      select: { id: true, email: true, username: true, createdAt: true },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        role: true,
+        createdAt: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /** Sets a user's global role (admin/member). */
+  async setRole(id: string, role: Role) {
+    try {
+      return await this.prisma.user.update({
+        where: { id },
+        data: { role },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          role: true,
+          createdAt: true,
+        },
+      });
+    } catch {
+      throw new NotFoundException('User not found');
+    }
   }
 }

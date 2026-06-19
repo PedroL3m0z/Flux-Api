@@ -1,7 +1,15 @@
+export type GlobalRole = 'admin' | 'member'
+
+export type InstanceRole = 'owner' | 'operator' | 'viewer'
+
+/** Caller's effective role on an instance (`admin` = global superuser). */
+export type EffectiveRole = 'admin' | InstanceRole
+
 export interface SafeUser {
   id: string
   email: string
   username: string
+  role: GlobalRole
 }
 
 export interface Credentials {
@@ -24,6 +32,15 @@ export interface UserListItem {
   id: string
   email: string
   username: string
+  role: GlobalRole
+  createdAt: string
+}
+
+export interface InstanceMember {
+  userId: string
+  username: string
+  email: string
+  role: InstanceRole
   createdAt: string
 }
 
@@ -47,6 +64,8 @@ export interface TelegramInstance {
   username?: string
   phone?: string
   createdAt: string
+  /** The current user's effective role on this instance. */
+  myRole?: EffectiveRole
 }
 
 export interface InstanceInfo extends TelegramInstance {
@@ -239,6 +258,11 @@ export const api = {
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   me: () => request<SafeUser>('/auth/me'),
   users: () => request<UserListItem[]>('/users'),
+  setUserRole: (id: string, role: GlobalRole) =>
+    request<UserListItem>(`/users/${id}/role`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    }),
   apiKeyCheck: (key: string) =>
     request<{ ok: boolean; via: string }>('/auth/api-key-check', {
       headers: { 'x-api-key': key },
@@ -276,6 +300,24 @@ export const api = {
   // Server-sent stream of the QR login flow; caller subscribes and closes it.
   qrLoginStream: (id: string) =>
     new EventSource(withKey(`/telegram/instances/${id}/login/qr`)),
+
+  // --- Instance members (per-instance access) ---
+  instanceMembers: (id: string) =>
+    request<InstanceMember[]>(`/telegram/instances/${id}/members`),
+  addInstanceMember: (id: string, userId: string, role: InstanceRole) =>
+    request<InstanceMember>(`/telegram/instances/${id}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ userId, role }),
+    }),
+  updateInstanceMemberRole: (id: string, userId: string, role: InstanceRole) =>
+    request<InstanceMember>(`/telegram/instances/${id}/members/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    }),
+  removeInstanceMember: (id: string, userId: string) =>
+    request<void>(`/telegram/instances/${id}/members/${userId}`, {
+      method: 'DELETE',
+    }),
 
   instanceChats: (id: string) =>
     request<ChatView[]>(`/telegram/instances/${id}/chats`),

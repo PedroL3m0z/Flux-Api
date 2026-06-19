@@ -25,4 +25,6 @@ export interface TelegramInstance {
   /** Non-secret part of the engine config, safe to expose (e.g. GramJS apiId). */
   apiId?: string;
   createdAt: string;
+  /** The requesting user's effective role on this instance, when resolved. */
+  myRole?: 'admin' | 'owner' | 'operator' | 'viewer';
 }

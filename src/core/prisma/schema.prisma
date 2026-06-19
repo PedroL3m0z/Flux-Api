@@ -11,16 +11,29 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  admin
+  member
+}
+
+enum InstanceRole {
+  owner
+  operator
+  viewer
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   username  String   @unique
   password  String
+  role      Role     @default(member)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  instances Instance[]
-  webhooks  Webhook[]
+  instances   Instance[]
+  webhooks    Webhook[]
+  memberships InstanceMember[]
 
   @@map("users")
 }
@@ -79,9 +92,24 @@ model Instance {
   contacts     Contact[]
   messages     Message[]
   webhookLinks WebhookInstance[]
+  members      InstanceMember[]
 
   @@index([ownerId])
   @@map("telegram_instances")
+}
+
+model InstanceMember {
+  instanceId String
+  instance   Instance     @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       InstanceRole @default(viewer)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@id([instanceId, userId])
+  @@index([userId])
+  @@map("instance_members")
 }
 
 model Contact {

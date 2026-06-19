@@ -11,6 +11,7 @@ import { TelegramManager } from './telegram.manager';
 import { TelegramSessionStore } from './telegram-session.store';
 import { TelegramSyncService } from './services/telegram-sync.service';
 import { TelegramEventBus } from './services/telegram-events.service';
+import { InstanceAccessService } from './services/instance-access.service';
 
 // Collects every registered engine into the array the registry consumes.
 // Add new engine providers here (e.g. TelegrafEngine) and to the inject list.
@@ -41,6 +42,7 @@ const enginesProvider: Provider = {
     TelegramEventBus,
     TelegramSessionStore,
     TelegramManager,
+    InstanceAccessService,
   ],
   exports: [
     InstancesService,
@@ -52,6 +54,7 @@ const enginesProvider: Provider = {
     TelegramEventBus,
     TelegramSessionStore,
     TelegramManager,
+    InstanceAccessService,
   ],
 })
 export class TelegramModule {}

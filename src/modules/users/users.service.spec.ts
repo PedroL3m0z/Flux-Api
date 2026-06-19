@@ -70,7 +70,13 @@ describe('UsersService', () => {
     await service.findAll();
 
     expect(prisma.user.findMany).toHaveBeenCalledWith({
-      select: { id: true, email: true, username: true, createdAt: true },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        role: true,
+        createdAt: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
   });

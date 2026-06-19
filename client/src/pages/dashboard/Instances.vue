@@ -13,15 +13,19 @@ import {
   Server,
   Square,
   Trash2,
+  Users as UsersIcon,
   X,
 } from 'lucide-vue-next'
 import {
   api,
   type EngineKey,
   type InstanceInfo,
+  type InstanceMember,
+  type InstanceRole,
   type InstanceStatus,
   type QrLoginEvent,
   type TelegramInstance,
+  type UserListItem,
 } from '@/lib/api'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
@@ -34,6 +38,18 @@ import CardContent from '@/components/ui/CardContent.vue'
 
 const { t, locale } = useI18n()
 const router = useRouter()
+
+const INSTANCE_ROLES: InstanceRole[] = ['owner', 'operator', 'viewer']
+
+/** Can perform operational actions (start/stop, send): operator and above. */
+function canOperate(inst: TelegramInstance): boolean {
+  return ['admin', 'owner', 'operator'].includes(inst.myRole ?? 'viewer')
+}
+
+/** Can administer the instance (delete, manage members): owner and above. */
+function canManage(inst: TelegramInstance): boolean {
+  return ['admin', 'owner'].includes(inst.myRole ?? 'viewer')
+}
 
 const engines: { key: EngineKey; label: string; disabled?: boolean }[] = [
   { key: 'gramjs', label: 'GramJS' },
@@ -287,6 +303,93 @@ async function submitPassword() {
   }
 }
 
+// --- Members modal ---
+
+const showMembers = ref(false)
+const membersInstance = ref<TelegramInstance | null>(null)
+const members = ref<InstanceMember[]>([])
+const allUsers = ref<UserListItem[]>([])
+const membersLoading = ref(false)
+const membersBusy = ref(false)
+const addUserId = ref('')
+const addRole = ref<InstanceRole>('operator')
+
+async function openMembers(inst: TelegramInstance) {
+  membersInstance.value = inst
+  showMembers.value = true
+  membersLoading.value = true
+  addUserId.value = ''
+  addRole.value = 'operator'
+  try {
+    ;[members.value, allUsers.value] = await Promise.all([
+      api.instanceMembers(inst.id),
+      api.users(),
+    ])
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : t('members.loadFailed'))
+  } finally {
+    membersLoading.value = false
+  }
+}
+
+function closeMembers() {
+  showMembers.value = false
+  membersInstance.value = null
+  members.value = []
+}
+
+// Users not yet members, eligible to be added.
+const addableUsers = () =>
+  allUsers.value.filter(
+    (u) => !members.value.some((m) => m.userId === u.id),
+  )
+
+async function addMember() {
+  if (!membersInstance.value || !addUserId.value) return
+  membersBusy.value = true
+  try {
+    await api.addInstanceMember(
+      membersInstance.value.id,
+      addUserId.value,
+      addRole.value,
+    )
+    members.value = await api.instanceMembers(membersInstance.value.id)
+    addUserId.value = ''
+    toast.success(t('members.added'))
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : t('members.actionFailed'))
+  } finally {
+    membersBusy.value = false
+  }
+}
+
+async function changeRole(m: InstanceMember, role: InstanceRole) {
+  if (!membersInstance.value) return
+  try {
+    const updated = await api.updateInstanceMemberRole(
+      membersInstance.value.id,
+      m.userId,
+      role,
+    )
+    m.role = updated.role
+    toast.success(t('members.updated'))
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : t('members.actionFailed'))
+  }
+}
+
+async function removeMember(m: InstanceMember) {
+  if (!membersInstance.value) return
+  if (!window.confirm(t('members.confirmRemove'))) return
+  try {
+    await api.removeInstanceMember(membersInstance.value.id, m.userId)
+    members.value = members.value.filter((x) => x.userId !== m.userId)
+    toast.success(t('members.removed'))
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : t('members.actionFailed'))
+  }
+}
+
 onUnmounted(() => {
   closeStream()
   closeInfo()
@@ -370,7 +473,7 @@ onUnmounted(() => {
                   <MessageSquare class="h-4 w-4" />
                 </Button>
                 <Button
-                  v-if="inst.status === 'authorized'"
+                  v-if="inst.status === 'authorized' && canOperate(inst)"
                   variant="ghost"
                   size="icon"
                   :title="t('instances.stop')"
@@ -380,7 +483,7 @@ onUnmounted(() => {
                   <Square class="h-4 w-4" />
                 </Button>
                 <Button
-                  v-else-if="inst.status === 'disconnected' || inst.status === 'error'"
+                  v-else-if="canOperate(inst) && (inst.status === 'disconnected' || inst.status === 'error')"
                   variant="ghost"
                   size="icon"
                   :title="t('instances.start')"
@@ -389,7 +492,22 @@ onUnmounted(() => {
                 >
                   <Play class="h-4 w-4 text-green-600" />
                 </Button>
-                <Button variant="ghost" size="icon" @click="removeInstance(inst)">
+                <Button
+                  v-if="canManage(inst)"
+                  variant="ghost"
+                  size="icon"
+                  :title="t('members.manage')"
+                  @click="openMembers(inst)"
+                >
+                  <UsersIcon class="h-4 w-4" />
+                </Button>
+                <Button
+                  v-if="canManage(inst)"
+                  variant="ghost"
+                  size="icon"
+                  :title="t('instances.delete')"
+                  @click="removeInstance(inst)"
+                >
                   <Trash2 class="h-4 w-4 text-destructive" />
                 </Button>
               </td>
@@ -558,6 +676,96 @@ onUnmounted(() => {
               <dt class="text-muted-foreground">{{ t('instances.infoUptime') }}</dt>
               <dd class="col-span-2 font-medium">{{ fmtUptime(info.uptimeSeconds) }}</dd>
             </dl>
+          </CardContent>
+        </Card>
+      </div>
+    </Teleport>
+
+    <!-- Members panel -->
+    <Teleport to="body">
+      <div
+        v-if="showMembers"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        @click.self="closeMembers"
+      >
+        <Card class="w-full max-w-lg">
+          <CardHeader class="flex-row items-start justify-between">
+            <div>
+              <CardTitle class="flex items-center gap-2 text-base">
+                <UsersIcon class="h-4 w-4" /> {{ t('members.title') }}
+              </CardTitle>
+              <CardDescription>
+                {{ membersInstance?.label }} — {{ t('members.subtitle') }}
+              </CardDescription>
+            </div>
+            <Button variant="ghost" size="icon" @click="closeMembers">
+              <X class="h-4 w-4" />
+            </Button>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <p v-if="membersLoading" class="py-6 text-center text-sm text-muted-foreground">
+              {{ t('common.loading') }}
+            </p>
+            <template v-else>
+              <!-- Existing members -->
+              <ul class="divide-y rounded-md border">
+                <li v-if="!members.length" class="px-3 py-4 text-center text-sm text-muted-foreground">
+                  {{ t('members.empty') }}
+                </li>
+                <li
+                  v-for="m in members"
+                  :key="m.userId"
+                  class="flex items-center gap-2 px-3 py-2"
+                >
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-medium">{{ m.username }}</p>
+                    <p class="truncate text-xs text-muted-foreground">{{ m.email }}</p>
+                  </div>
+                  <select
+                    :value="m.role"
+                    class="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                    @change="changeRole(m, ($event.target as HTMLSelectElement).value as InstanceRole)"
+                  >
+                    <option v-for="r in INSTANCE_ROLES" :key="r" :value="r">
+                      {{ t(`roles.${r}`) }}
+                    </option>
+                  </select>
+                  <Button variant="ghost" size="icon" :title="t('members.remove')" @click="removeMember(m)">
+                    <Trash2 class="h-4 w-4 text-destructive" />
+                  </Button>
+                </li>
+              </ul>
+
+              <!-- Add member -->
+              <div class="flex items-end gap-2 border-t pt-4">
+                <div class="grid flex-1 gap-1">
+                  <Label class="text-xs">{{ t('members.addUser') }}</Label>
+                  <select
+                    v-model="addUserId"
+                    class="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option value="" disabled>{{ t('members.selectUser') }}</option>
+                    <option v-for="u in addableUsers()" :key="u.id" :value="u.id">
+                      {{ u.username }} ({{ u.email }})
+                    </option>
+                  </select>
+                </div>
+                <div class="grid gap-1">
+                  <Label class="text-xs">{{ t('members.role') }}</Label>
+                  <select
+                    v-model="addRole"
+                    class="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option v-for="r in INSTANCE_ROLES" :key="r" :value="r">
+                      {{ t(`roles.${r}`) }}
+                    </option>
+                  </select>
+                </div>
+                <Button :disabled="!addUserId || membersBusy" @click="addMember">
+                  {{ t('members.add') }}
+                </Button>
+              </div>
+            </template>
           </CardContent>
         </Card>
       </div>
