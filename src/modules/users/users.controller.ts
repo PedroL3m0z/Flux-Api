@@ -57,7 +57,15 @@ export class UsersController {
   @ApiParam({ name: 'id', description: 'User id' })
   @ApiOkResponse({ type: UserEntity })
   @ApiForbiddenResponse({ description: 'Requires the admin role' })
-  setRole(@Param('id') id: string, @Body() dto: UpdateUserRoleDto) {
+  @ApiBadRequestResponse({ description: 'Cannot change your own role' })
+  setRole(
+    @CurrentUser() user: SafeUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateUserRoleDto,
+  ) {
+    if (user.id === id) {
+      throw new BadRequestException('Cannot change your own role');
+    }
     return this.users.setRole(id, dto.role);
   }
 
@@ -71,7 +79,15 @@ export class UsersController {
   @ApiParam({ name: 'id', description: 'User id' })
   @ApiOkResponse({ type: UserEntity })
   @ApiForbiddenResponse({ description: 'Requires the admin role' })
-  update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
+  @ApiBadRequestResponse({ description: 'Cannot change your own role' })
+  update(
+    @CurrentUser() user: SafeUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDto,
+  ) {
+    if (user.id === id && dto.role !== undefined && dto.role !== user.role) {
+      throw new BadRequestException('Cannot change your own role');
+    }
     return this.users.update(id, dto);
   }
 

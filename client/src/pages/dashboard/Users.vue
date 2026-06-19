@@ -319,12 +319,19 @@ const onSubmit = handleSubmit(async (values) => {
                 <select
                   id="edit-role"
                   v-model="editRole"
-                  class="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  :disabled="editId === auth.user?.id"
+                  class="h-9 rounded-md border border-input bg-background px-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <option v-for="r in DASHBOARD_ROLES" :key="r" :value="r">
                     {{ t(`roles.${r}`) }}
                   </option>
                 </select>
+                <p
+                  v-if="editId === auth.user?.id"
+                  class="text-xs text-muted-foreground"
+                >
+                  {{ t('users.cantChangeOwnRole') }}
+                </p>
               </div>
               <div class="flex justify-end gap-2">
                 <Button type="button" variant="outline" @click="showEdit = false">

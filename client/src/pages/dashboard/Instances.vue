@@ -7,6 +7,7 @@ import QRCode from 'qrcode'
 import {
   ChevronDown,
   Info,
+  LogIn,
   MessageSquare,
   Play,
   Plus,
@@ -214,6 +215,7 @@ function fmtUptime(seconds: number | null): string {
 type LoginPhase = 'form' | 'qr' | 'phone' | 'code' | 'password'
 
 const showModal = ref(false)
+const modalMode = ref<'create' | 'connect'>('create')
 const phase = ref<LoginPhase>('form')
 const loginMethod = ref<LoginMethod>('qr')
 const label = ref('')
@@ -243,11 +245,8 @@ function closeStream() {
   stream = null
 }
 
-function openAdd() {
-  phase.value = 'form'
+function resetLoginState() {
   loginMethod.value = 'qr'
-  label.value = ''
-  engine.value = 'gramjs'
   createError.value = ''
   loginError.value = ''
   phoneNumber.value = ''
@@ -255,7 +254,37 @@ function openAdd() {
   passwordRequired.value = false
   password.value = ''
   authorizedName.value = ''
+}
+
+function openAdd() {
+  modalMode.value = 'create'
+  phase.value = 'form'
+  label.value = ''
+  engine.value = 'gramjs'
+  resetLoginState()
   showModal.value = true
+}
+
+/** Re-open the login flow for an instance that already exists (failed/abandoned
+ *  QR or phone login leaves it without a valid session). */
+function openConnect(inst: TelegramInstance) {
+  modalMode.value = 'connect'
+  phase.value = 'form'
+  currentId.value = inst.id
+  label.value = inst.label
+  resetLoginState()
+  showModal.value = true
+}
+
+/** Starts the chosen login method against an existing instance id. */
+function proceedLogin() {
+  loginMode.value = loginMethod.value
+  if (loginMethod.value === 'qr') {
+    phase.value = 'qr'
+    startQr(currentId.value)
+  } else {
+    phase.value = 'phone'
+  }
 }
 
 function closeModal() {
@@ -279,13 +308,8 @@ async function submitCreate() {
       engine: engine.value,
     })
     currentId.value = inst.id
-    loginMode.value = loginMethod.value
-    if (loginMethod.value === 'qr') {
-      phase.value = 'qr'
-      startQr(inst.id)
-    } else {
-      phase.value = 'phone'
-    }
+    await loadInstances()
+    proceedLogin()
   } catch (e) {
     createError.value = e instanceof Error ? e.message : t('instances.createFailed')
   } finally {
@@ -501,6 +525,15 @@ onUnmounted(() => {
                   <Play class="h-4 w-4 text-green-600" />
                 </Button>
                 <Button
+                  v-if="canOperate(inst) && inst.status !== 'authorized'"
+                  variant="ghost"
+                  size="icon"
+                  :title="t('instances.connectAction')"
+                  @click="openConnect(inst)"
+                >
+                  <LogIn class="h-4 w-4 text-primary" />
+                </Button>
+                <Button
                   v-if="canManage(inst)"
                   variant="ghost"
                   size="icon"
@@ -526,26 +559,29 @@ onUnmounted(() => {
           <CardHeader class="flex-row items-start justify-between">
             <div>
               <CardTitle class="flex items-center gap-2 text-base">
-                <Server class="h-4 w-4" /> {{ t('instances.modalTitle') }}
+                <Server class="h-4 w-4" />
+                {{ modalMode === 'create' ? t('instances.modalTitle') : t('instances.connectTitle') }}
               </CardTitle>
-              <CardDescription>{{ t('instances.modalDesc') }}</CardDescription>
+              <CardDescription>
+                {{ modalMode === 'create' ? t('instances.modalDesc') : t('instances.connectDesc', { label }) }}
+              </CardDescription>
             </div>
             <Button variant="ghost" size="icon" @click="closeModal">
               <X class="h-4 w-4" />
             </Button>
           </CardHeader>
           <CardContent>
-            <!-- Phase 1: create -->
+            <!-- Phase 1: create instance and/or pick a login method -->
             <form
               v-if="phase === 'form'"
               class="grid gap-4"
-              @submit.prevent="submitCreate"
+              @submit.prevent="modalMode === 'create' ? submitCreate() : proceedLogin()"
             >
-              <div class="grid gap-2">
+              <div v-if="modalMode === 'create'" class="grid gap-2">
                 <Label for="label">{{ t('instances.label') }}</Label>
                 <Input id="label" v-model="label" placeholder="Main account" />
               </div>
-              <div class="grid gap-2">
+              <div v-if="modalMode === 'create'" class="grid gap-2">
                 <Label for="engine">{{ t('instances.engine') }}</Label>
                 <div class="relative">
                   <select
@@ -601,7 +637,9 @@ onUnmounted(() => {
                   {{ t('common.cancel') }}
                 </Button>
                 <Button type="submit" :disabled="creating">
-                  {{ creating ? t('common.creating') : t('common.create') }}
+                  {{ modalMode === 'connect'
+                    ? t('instances.connectAction')
+                    : creating ? t('common.creating') : t('common.create') }}
                 </Button>
               </div>
             </form>

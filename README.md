@@ -425,8 +425,8 @@ interface WebhookDeliveryView   { id; webhookId; instanceId?; event; status; att
 | Rota              | Método | Auth                  | Descrição                                                    |
 | ----------------- | ------ | --------------------- | ----------------------------------------------------------- |
 | `/users`          | GET    | Bearer JWT + API key  | Lista os usuários cadastrados (só `admin`)                  |
-| `/users/:id/role` | PATCH  | Bearer JWT + API key  | Altera o papel global `{role: 'admin'\|'operator'\|'viewer'}` (só `admin`) |
-| `/users/:id`      | PATCH  | Bearer JWT + API key  | Edita usuário `{email?, username?, password?, role?}` (só `admin`) |
+| `/users/:id/role` | PATCH  | Bearer JWT + API key  | Altera o papel global `{role: 'admin'\|'operator'\|'viewer'}` (só `admin`; não pode alterar o próprio papel) |
+| `/users/:id`      | PATCH  | Bearer JWT + API key  | Edita usuário `{email?, username?, password?, role?}` (só `admin`; não pode alterar o próprio papel) |
 | `/users/:id`      | DELETE | Bearer JWT + API key  | Exclui usuário e cascateia instâncias/webhooks (só `admin`; não pode excluir a si mesmo) |
 | `/`               | GET    | pública               | Redireciona para `/dashboard`                              |
 | `/health`         | GET    | pública               | Postgres + Redis + Telegram + heap                         |

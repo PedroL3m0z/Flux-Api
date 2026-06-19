@@ -505,11 +505,11 @@ export class TelegramManager
       await client?.disconnect().catch(() => undefined);
       this.phoneLoginClients.delete(id);
       this.rejectPhoneLoginStep(id, message);
-      const notify = this.phoneCodeSent.get(id);
-      if (notify) {
-        this.phoneCodeSent.delete(id);
-        notify();
-      }
+      // Do NOT resolve `phoneCodeSent` here. If the failure happened before the
+      // code was actually dispatched (invalid api_id, bad phone number,
+      // FLOOD_WAIT, etc.), the thrown error must propagate so `startPhoneLogin`
+      // rejects and the caller sees the real Telegram error — instead of being
+      // sent to a "enter code" step for a code that was never delivered.
       throw new Error(message, { cause: error });
     } finally {
       this.pendingPhoneCodes.delete(id);
