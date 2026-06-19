@@ -63,6 +63,7 @@ export class AuthController {
   }
 
   @Post('register')
+  @NoApiKey()
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Create a user (JWT protected; the seeded user creates others)',
