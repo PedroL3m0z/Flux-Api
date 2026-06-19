@@ -20,6 +20,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   instances Instance[]
+  webhooks  Webhook[]
 
   @@map("users")
 }
@@ -74,9 +75,10 @@ model Instance {
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
 
-  chats    Chat[]
-  contacts Contact[]
-  messages Message[]
+  chats        Chat[]
+  contacts     Contact[]
+  messages     Message[]
+  webhookLinks WebhookInstance[]
 
   @@index([ownerId])
   @@map("telegram_instances")
@@ -145,4 +147,62 @@ model Message {
   @@unique([instanceId, chatId, tgMessageId])
   @@index([chatId, date])
   @@map("telegram_messages")
+}
+
+enum WebhookStatus {
+  pending
+  success
+  failed
+  dead
+}
+
+model Webhook {
+  id        String   @id @default(uuid())
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name      String
+  url       String
+  secret    String
+  active    Boolean  @default(true)
+  events    String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  instances  WebhookInstance[]
+  deliveries WebhookDelivery[]
+
+  @@index([ownerId])
+  @@map("webhooks")
+}
+
+model WebhookInstance {
+  webhookId  String
+  webhook    Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  instanceId String
+  instance   Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([webhookId, instanceId])
+  @@index([instanceId])
+  @@map("webhook_instances")
+}
+
+model WebhookDelivery {
+  id            String        @id @default(uuid())
+  webhookId     String
+  webhook       Webhook       @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  instanceId    String?
+  event         String
+  status        WebhookStatus @default(pending)
+  attempts      Int           @default(0)
+  statusCode    Int?
+  lastError     String?
+  payload       Json
+  nextAttemptAt DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  deliveredAt   DateTime?
+
+  @@index([status, nextAttemptAt])
+  @@index([webhookId, createdAt])
+  @@map("webhook_deliveries")
 }

@@ -125,6 +125,47 @@ export interface TelegramSettings {
   hasApiHash: boolean
 }
 
+export const WEBHOOK_EVENT_TYPES = [
+  'session.status',
+  'message.new',
+  'message.edited',
+  'message.deleted',
+  'message.read',
+  'message.reaction',
+] as const
+
+export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number]
+
+export interface Webhook {
+  id: string
+  name: string
+  url: string
+  active: boolean
+  events: string[]
+  instanceIds: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface WebhookWithSecret extends Webhook {
+  secret: string
+}
+
+export type WebhookDeliveryStatus = 'pending' | 'success' | 'failed' | 'dead'
+
+export interface WebhookDelivery {
+  id: string
+  webhookId: string
+  instanceId?: string
+  event: string
+  status: WebhookDeliveryStatus
+  attempts: number
+  statusCode?: number
+  lastError?: string
+  createdAt: string
+  deliveredAt?: string
+}
+
 export interface SystemStats {
   uptimeSeconds: number
   instances: {
@@ -296,6 +337,52 @@ export const api = {
     withKey(`/telegram/instances/${id}/contacts/${contactId}/photo`),
   messageMediaUrl: (id: string, chatId: string, tgMessageId: string) =>
     withKey(`/telegram/instances/${id}/chats/${chatId}/messages/${tgMessageId}/media`),
+
+  // --- Webhooks ---
+  webhooks: () => request<Webhook[]>('/webhooks'),
+  createWebhook: (body: {
+    name: string
+    url: string
+    events: string[]
+    instanceIds?: string[]
+  }) =>
+    request<WebhookWithSecret>('/webhooks', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateWebhook: (
+    id: string,
+    body: {
+      name?: string
+      url?: string
+      active?: boolean
+      events?: string[]
+    },
+  ) =>
+    request<Webhook>(`/webhooks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteWebhook: (id: string) =>
+    request<void>(`/webhooks/${id}`, { method: 'DELETE' }),
+  regenerateWebhookSecret: (id: string) =>
+    request<WebhookWithSecret>(`/webhooks/${id}/regenerate-secret`, {
+      method: 'POST',
+    }),
+  linkWebhookInstance: (id: string, instanceId: string) =>
+    request<Webhook>(`/webhooks/${id}/instances/${instanceId}`, {
+      method: 'POST',
+    }),
+  unlinkWebhookInstance: (id: string, instanceId: string) =>
+    request<Webhook>(`/webhooks/${id}/instances/${instanceId}`, {
+      method: 'DELETE',
+    }),
+  webhookDeliveries: (id: string) =>
+    request<WebhookDelivery[]>(`/webhooks/${id}/deliveries`),
+  resendWebhookDelivery: (deliveryId: string) =>
+    request<WebhookDelivery>(`/webhooks/deliveries/${deliveryId}/resend`, {
+      method: 'POST',
+    }),
 
   stats: () => request<SystemStats>('/telegram/stats'),
   getSettings: () => request<TelegramSettings>('/telegram/settings'),

@@ -12,6 +12,7 @@ import {
   Server,
   Settings,
   Users,
+  Webhook,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import Button from '@/components/ui/Button.vue'
@@ -34,6 +35,7 @@ function toggle() {
 const nav = [
   { name: 'overview', key: 'nav.overview', icon: LayoutDashboard },
   { name: 'instances', key: 'nav.instances', icon: Server },
+  { name: 'webhooks', key: 'nav.webhooks', icon: Webhook },
   { name: 'users', key: 'nav.users', icon: Users },
   { name: 'settings', key: 'nav.settings', icon: Settings },
   { name: 'help', key: 'nav.help', icon: HelpCircle },

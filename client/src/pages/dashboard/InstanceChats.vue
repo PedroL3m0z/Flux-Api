@@ -390,6 +390,11 @@ onUnmounted(() => stream?.close())
               class="hidden"
               @change="onFilePicked"
             />
+            <Input
+              v-model="sendText"
+              :placeholder="t('chats.placeholder')"
+              class="flex-1"
+            />
             <Button
               type="button"
               variant="ghost"
@@ -400,11 +405,6 @@ onUnmounted(() => stream?.close())
             >
               <Paperclip class="h-4 w-4" />
             </Button>
-            <Input
-              v-model="sendText"
-              :placeholder="t('chats.placeholder')"
-              class="flex-1"
-            />
             <Button type="submit" size="icon" :disabled="sending">
               <Send class="h-4 w-4" />
             </Button>

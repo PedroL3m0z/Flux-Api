@@ -6,7 +6,9 @@ import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './core/prisma/prisma.module';
 import { RedisModule } from './core/redis/redis.module';
 import { TelegramModule } from './core/telegram/telegram.module';
+import { WebhooksModule } from './core/webhooks/webhooks.module';
 import { TelegramModule as TelegramHttpModule } from './modules/telegram/telegram.module';
+import { WebhooksModule as WebhooksHttpModule } from './modules/webhooks/webhooks.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
@@ -36,10 +38,12 @@ import { UsersModule } from './modules/users/users.module';
     PrismaModule,
     RedisModule,
     TelegramModule,
+    WebhooksModule,
     HealthModule,
     UsersModule,
     AuthModule,
     TelegramHttpModule,
+    WebhooksHttpModule,
     DashboardModule,
     SeedModule,
   ],

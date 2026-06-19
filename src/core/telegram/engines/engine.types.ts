@@ -106,6 +106,35 @@ export interface DialogSnapshot {
   lastMessage?: NormalizedMessage;
 }
 
+/** A reaction on a message (emoji or custom emoji id) with its count. */
+export interface NormalizedReaction {
+  emoji?: string;
+  customEmojiId?: string;
+  count: number;
+}
+
+/**
+ * Engine-agnostic realtime event. Discriminated by `type` so the sync layer and
+ * webhook dispatcher can react uniformly across engines.
+ */
+export type NormalizedEvent =
+  | { type: 'message.new'; message: NormalizedMessage }
+  | { type: 'message.edited'; message: NormalizedMessage }
+  | { type: 'message.deleted'; chat?: NormalizedChat; tgMessageIds: string[] }
+  | {
+      type: 'message.read';
+      chat: NormalizedChat;
+      maxId: string;
+      /** outbound = the recipient read our messages ("seen"); inbound = we read theirs. */
+      direction: 'inbound' | 'outbound';
+    }
+  | {
+      type: 'message.reaction';
+      chat: NormalizedChat;
+      tgMessageId: string;
+      reactions: NormalizedReaction[];
+    };
+
 /** A peer reference an engine needs to act on a chat. */
 export interface PeerRef {
   tgPeerId: string;
@@ -147,8 +176,11 @@ export interface EngineClient {
     file: UploadedMedia,
     caption?: string,
   ): Promise<NormalizedMessage>;
-  /** Subscribes to incoming messages; returns an unsubscribe function. */
-  onMessage?(handler: (message: NormalizedMessage) => void): () => void;
+  /**
+   * Subscribes to realtime events (new/edited/deleted messages, read receipts,
+   * reactions); returns an unsubscribe function.
+   */
+  onEvent?(handler: (event: NormalizedEvent) => void): () => void;
   /** Downloads a peer's profile/group photo; null when there is none. */
   downloadAvatar?(peer: PeerRef): Promise<MediaBlob | null>;
   /** Downloads a message's attachment bytes; null when absent/unavailable. */
