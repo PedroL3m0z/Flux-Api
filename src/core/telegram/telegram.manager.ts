@@ -22,7 +22,10 @@ import type { TelegramInstance } from './telegram.constants';
 import type { PhoneLoginStepResult } from './telegram.constants';
 import { isSessionRevokedError, sessionRevokedMessage } from './session-errors';
 
-const SESSION_HEALTH_INTERVAL_MS = 30_000;
+// How often a live client is probed (isAuthorized + getMe) to detect a
+// session revoked remotely from the Telegram app. Lower = snappier status,
+// at the cost of a lightweight RPC per instance per tick.
+const SESSION_HEALTH_INTERVAL_MS = 15_000;
 
 export interface InstancesSummary {
   enabled: boolean;
@@ -618,16 +621,22 @@ export class TelegramManager
       client = await engine.connect(sessionStr, config);
       const authorized = await client.isAuthorized();
       if (!authorized) {
+        // The saved session exists but is no longer valid (revoked/expired):
+        // mark it as errored — not merely disconnected — so the UI offers a
+        // fresh login (Connect) and `startInstance` reports a clear reason.
         await client.disconnect().catch(() => undefined);
+        const reason =
+          'Session is no longer valid — log in again via QR or phone.';
+        this.sessionErrorMessages.set(instance.id, reason);
         await this.session.deleteSession(instance.id);
         await this.instances.update(instance.id, {
-          status: 'disconnected',
+          status: 'error',
           firstName: null,
           username: null,
           phone: null,
           tgUserId: null,
         });
-        this.publishStatus(instance.id, 'disconnected');
+        this.publishStatus(instance.id, 'error', { message: reason });
         return;
       }
       const me = await client.getMe().catch(async (error: unknown) => {
