@@ -5,6 +5,13 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0](https://github.com/PedroL3m0z/Flux-Api/compare/v1.1.0...v1.2.0) (2026-06-19)
+
+
+### Features
+
+* reconnect existing instances via QR or phone ([#48](https://github.com/PedroL3m0z/Flux-Api/issues/48)) ([4281287](https://github.com/PedroL3m0z/Flux-Api/commit/42812871226f3d1e964dd1d70f14acefee336f9d))
+
 ## [1.1.0](https://github.com/PedroL3m0z/Flux-Api/compare/v1.0.0...v1.1.0) (2026-06-19)
 
 
