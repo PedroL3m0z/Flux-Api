@@ -8,13 +8,13 @@ import { HashingService } from '../../common/hashing/hashing.service';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import type { JwtPayload } from './strategies/jwt.strategy';
-import type { GlobalRole } from '../../common/authz/permissions';
+import type { UserRole } from '../../common/authz/permissions';
 
 export interface SafeUser {
   id: string;
   email: string;
   username: string;
-  role: GlobalRole;
+  role: UserRole;
 }
 
 /** True for a Prisma unique-constraint violation (error code P2002). */

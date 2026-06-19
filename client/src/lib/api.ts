@@ -1,15 +1,13 @@
-export type GlobalRole = 'admin' | 'member'
+export type UserRole = 'admin' | 'operator' | 'viewer'
 
-export type InstanceRole = 'owner' | 'operator' | 'viewer'
-
-/** Caller's effective role on an instance (`admin` = global superuser). */
-export type EffectiveRole = 'admin' | InstanceRole
+/** @deprecated use UserRole */
+export type GlobalRole = UserRole
 
 export interface SafeUser {
   id: string
   email: string
   username: string
-  role: GlobalRole
+  role: UserRole
 }
 
 export interface Credentials {
@@ -32,15 +30,7 @@ export interface UserListItem {
   id: string
   email: string
   username: string
-  role: GlobalRole
-  createdAt: string
-}
-
-export interface InstanceMember {
-  userId: string
-  username: string
-  email: string
-  role: InstanceRole
+  role: UserRole
   createdAt: string
 }
 
@@ -50,10 +40,20 @@ export type InstanceStatus =
   | 'new'
   | 'connecting'
   | 'awaiting_qr'
+  | 'awaiting_code'
   | 'password_required'
   | 'authorized'
   | 'disconnected'
   | 'error'
+
+export type LoginMethod = 'qr' | 'phone'
+
+export type PhoneLoginStep =
+  | { status: 'password_required' }
+  | {
+      status: 'authorized'
+      me: { id: string; username?: string; firstName?: string; phone?: string }
+    }
 
 export interface TelegramInstance {
   id: string
@@ -64,8 +64,8 @@ export interface TelegramInstance {
   username?: string
   phone?: string
   createdAt: string
-  /** The current user's effective role on this instance. */
-  myRole?: EffectiveRole
+  /** The current user's global dashboard role (same on every instance). */
+  myRole?: UserRole
 }
 
 export interface InstanceInfo extends TelegramInstance {
@@ -77,6 +77,15 @@ export interface TelegramMe {
   id: string
   username?: string
   firstName?: string
+}
+
+export interface SessionStatusEvent {
+  instanceId: string
+  at: string
+  status: InstanceStatus
+  message?: string
+  username?: string
+  phone?: string
 }
 
 export type QrLoginEvent =
@@ -258,11 +267,21 @@ export const api = {
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   me: () => request<SafeUser>('/auth/me'),
   users: () => request<UserListItem[]>('/users'),
-  setUserRole: (id: string, role: GlobalRole) =>
+  setUserRole: (id: string, role: UserRole) =>
     request<UserListItem>(`/users/${id}/role`, {
       method: 'PATCH',
       body: JSON.stringify({ role }),
     }),
+  updateUser: (
+    id: string,
+    body: { email?: string; username?: string; password?: string; role?: UserRole },
+  ) =>
+    request<UserListItem>(`/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteUser: (id: string) =>
+    request<void>(`/users/${id}`, { method: 'DELETE' }),
   apiKeyCheck: (key: string) =>
     request<{ ok: boolean; via: string }>('/auth/api-key-check', {
       headers: { 'x-api-key': key },
@@ -293,31 +312,27 @@ export const api = {
       method: 'POST',
     }),
   submitQrPassword: (id: string, password: string) =>
-    request<{ ok: boolean }>(`/telegram/instances/${id}/login/password`, {
+    request<{
+      ok: boolean
+      me?: { id: string; username?: string; firstName?: string; phone?: string }
+    }>(`/telegram/instances/${id}/login/password`, {
+        method: 'POST',
+        body: JSON.stringify({ password }),
+      },
+    ),
+  startPhoneLogin: (id: string, phone: string) =>
+    request<{ ok: boolean }>(`/telegram/instances/${id}/login/phone`, {
       method: 'POST',
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ phone }),
+    }),
+  submitPhoneCode: (id: string, code: string) =>
+    request<PhoneLoginStep>(`/telegram/instances/${id}/login/code`, {
+      method: 'POST',
+      body: JSON.stringify({ code }),
     }),
   // Server-sent stream of the QR login flow; caller subscribes and closes it.
   qrLoginStream: (id: string) =>
     new EventSource(withKey(`/telegram/instances/${id}/login/qr`)),
-
-  // --- Instance members (per-instance access) ---
-  instanceMembers: (id: string) =>
-    request<InstanceMember[]>(`/telegram/instances/${id}/members`),
-  addInstanceMember: (id: string, userId: string, role: InstanceRole) =>
-    request<InstanceMember>(`/telegram/instances/${id}/members`, {
-      method: 'POST',
-      body: JSON.stringify({ userId, role }),
-    }),
-  updateInstanceMemberRole: (id: string, userId: string, role: InstanceRole) =>
-    request<InstanceMember>(`/telegram/instances/${id}/members/${userId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ role }),
-    }),
-  removeInstanceMember: (id: string, userId: string) =>
-    request<void>(`/telegram/instances/${id}/members/${userId}`, {
-      method: 'DELETE',
-    }),
 
   instanceChats: (id: string) =>
     request<ChatView[]>(`/telegram/instances/${id}/chats`),
@@ -368,6 +383,10 @@ export const api = {
     }
     return data as MessageView
   },
+  // Realtime stream of session.status for all instances.
+  instanceStatusStream: () =>
+    new EventSource(withKey('/telegram/instances/status/stream')),
+
   // Realtime stream of newly ingested messages for an instance.
   messagesStream: (id: string) =>
     new EventSource(withKey(`/telegram/instances/${id}/messages/stream`)),

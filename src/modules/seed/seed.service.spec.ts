@@ -42,7 +42,7 @@ describe('SeedService', () => {
       id: 'u1',
       email: 'admin@flux.dev',
       username: 'admin',
-      role: 'member',
+      role: 'viewer',
     });
 
     await svc.onApplicationBootstrap();
@@ -59,7 +59,7 @@ describe('SeedService', () => {
     const svc = make(full);
     users.findByEmailOrUsername.mockResolvedValue({
       id: 'u1',
-      role: 'member',
+      role: 'viewer',
     } as never);
 
     await svc.onApplicationBootstrap();

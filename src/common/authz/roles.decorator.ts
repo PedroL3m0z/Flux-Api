@@ -1,7 +1,7 @@
 import { SetMetadata } from '@nestjs/common';
-import type { GlobalRole } from './permissions';
+import type { UserRole } from './permissions';
 
 export const ROLES_KEY = 'roles';
 
-/** Restricts a route to the given global role(s). Enforced by `RolesGuard`. */
-export const Roles = (...roles: GlobalRole[]) => SetMetadata(ROLES_KEY, roles);
+/** Restricts a route to the given global dashboard role(s). Enforced by `RolesGuard`. */
+export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);

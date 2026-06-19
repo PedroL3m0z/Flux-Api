@@ -12,11 +12,11 @@ export class UserEntity {
   username!: string;
 
   @ApiProperty({
-    enum: ['admin', 'member'],
-    example: 'member',
-    description: 'Global role',
+    enum: ['admin', 'operator', 'viewer'],
+    example: 'viewer',
+    description: 'Global dashboard permission level',
   })
-  role!: 'admin' | 'member';
+  role!: 'admin' | 'operator' | 'viewer';
 }
 
 /** Login response. The JWT is also set as an httpOnly cookie. */

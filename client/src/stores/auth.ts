@@ -20,6 +20,11 @@ export const useAuthStore = defineStore('auth', () => {
   /** True when the current user is a global admin. */
   const isAdmin = computed(() => user.value?.role === 'admin')
 
+  /** True when the user can operate instances (admin or operator). */
+  const isOperator = computed(() =>
+    ['admin', 'operator'].includes(user.value?.role ?? 'viewer'),
+  )
+
   /** Restore the session from the httpOnly cookie (called once at startup). */
   async function init() {
     if (initialized.value) return
@@ -79,6 +84,7 @@ export const useAuthStore = defineStore('auth', () => {
     apiKeyReady,
     unlocked,
     isAdmin,
+    isOperator,
     init,
     login,
     submitApiKey,

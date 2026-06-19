@@ -129,7 +129,8 @@ export class MessagingService {
     try {
       const history = await client.getHistory(peer, { limit: 50, beforeId });
       return await this.sync.ingestHistory(instanceId, chatId, history);
-    } catch {
+    } catch (error) {
+      void this.manager.reportClientError(instanceId, error);
       return 0;
     }
   }
@@ -151,14 +152,19 @@ export class MessagingService {
     if (!peer) {
       throw new NotFoundException('Chat not found');
     }
-    const sent = await client.sendMessage(peer, text);
-    const view = await this.sync.ingest(instanceId, sent);
-    if (!view) {
-      throw new ServiceUnavailableException(
-        'Failed to persist the sent message',
-      );
+    try {
+      const sent = await client.sendMessage(peer, text);
+      const view = await this.sync.ingest(instanceId, sent);
+      if (!view) {
+        throw new ServiceUnavailableException(
+          'Failed to persist the sent message',
+        );
+      }
+      return view;
+    } catch (error) {
+      void this.manager.reportClientError(instanceId, error);
+      throw error;
     }
-    return view;
   }
 
   async sendMedia(
@@ -175,13 +181,18 @@ export class MessagingService {
     if (!peer) {
       throw new NotFoundException('Chat not found');
     }
-    const sent = await client.sendMedia(peer, file, caption);
-    const view = await this.sync.ingest(instanceId, sent);
-    if (!view) {
-      throw new ServiceUnavailableException(
-        'Failed to persist the sent message',
-      );
+    try {
+      const sent = await client.sendMedia(peer, file, caption);
+      const view = await this.sync.ingest(instanceId, sent);
+      if (!view) {
+        throw new ServiceUnavailableException(
+          'Failed to persist the sent message',
+        );
+      }
+      return view;
+    } catch (error) {
+      void this.manager.reportClientError(instanceId, error);
+      throw error;
     }
-    return view;
   }
 }

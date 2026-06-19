@@ -19,6 +19,10 @@ import { TelegramEventBus } from './services/telegram-events.service';
 import type { InstanceStatus } from './telegram.constants';
 import type { EngineConfig } from './engines/engine.types';
 import type { TelegramInstance } from './telegram.constants';
+import type { PhoneLoginStepResult } from './telegram.constants';
+import { isSessionRevokedError, sessionRevokedMessage } from './session-errors';
+
+const SESSION_HEALTH_INTERVAL_MS = 30_000;
 
 export interface InstancesSummary {
   enabled: boolean;
@@ -51,6 +55,25 @@ export class TelegramManager
   private readonly clients = new Map<string, EngineClient>();
   private readonly connectedAt = new Map<string, number>();
   private readonly pendingPasswords = new Map<string, (pwd: string) => void>();
+  private readonly pendingPhoneCodes = new Map<
+    string,
+    (code: string) => void
+  >();
+  private readonly phoneLoginClients = new Map<string, EngineClient>();
+  private readonly phoneLoginSteps = new Map<
+    string,
+    {
+      resolve: (result: PhoneLoginStepResult) => void;
+      reject: (err: Error) => void;
+    }
+  >();
+  private readonly phoneCodeSent = new Map<string, () => void>();
+  private readonly healthTimers = new Map<
+    string,
+    ReturnType<typeof setInterval>
+  >();
+  private readonly sessionLostBusy = new Set<string>();
+  private readonly sessionErrorMessages = new Map<string, string>();
 
   constructor(
     private readonly registry: EngineRegistry,
@@ -109,6 +132,10 @@ export class TelegramManager
   }
 
   async onModuleDestroy(): Promise<void> {
+    for (const timer of this.healthTimers.values()) {
+      clearInterval(timer);
+    }
+    this.healthTimers.clear();
     for (const id of this.clients.keys()) {
       this.sync.stop(id);
     }
@@ -155,14 +182,23 @@ export class TelegramManager
     return this.clients.size;
   }
 
+  /** Reports RPC errors from messaging; revokes the session when Telegram rejects the auth key. */
+  async reportClientError(instanceId: string, error: unknown): Promise<void> {
+    if (isSessionRevokedError(error)) {
+      await this.handleSessionLost(instanceId, sessionRevokedMessage(error));
+    }
+  }
+
   /** Tracks a live client and the moment it connected (for uptime). */
   private attach(id: string, client: EngineClient): void {
     this.clients.set(id, client);
     this.connectedAt.set(id, Date.now());
+    this.startHealthCheck(id);
   }
 
   /** Drops a live client and its connection timestamp. */
   private async detach(id: string): Promise<void> {
+    this.stopHealthCheck(id);
     this.sync.stop(id);
     const client = this.clients.get(id);
     if (client) {
@@ -179,16 +215,104 @@ export class TelegramManager
     this.publishStatus(id, 'disconnected');
   }
 
-  /** (Re)connects an instance from its saved session. No-op if already live. */
+  /** (Re)connects an instance from its saved session. Re-validates live clients. */
   async startInstance(id: string): Promise<TelegramInstance | null> {
     const instance = await this.instances.get(id);
     if (!instance) {
       return null;
     }
-    if (!this.clients.has(id)) {
-      await this.restore(instance);
+    if (this.clients.has(id)) {
+      const healthy = await this.probeClient(id);
+      if (healthy) {
+        return this.instances.get(id);
+      }
+      await this.handleSessionLost(
+        id,
+        'Session was revoked or expired — log in again',
+      );
     }
-    return this.instances.get(id);
+    await this.restore(instance);
+    const updated = await this.instances.get(id);
+    if (updated?.status === 'error') {
+      const message =
+        this.sessionErrorMessages.get(id) ??
+        'Failed to connect — session may have been revoked. Log in again via QR or phone.';
+      throw new Error(message);
+    }
+    return updated;
+  }
+
+  private startHealthCheck(id: string): void {
+    this.stopHealthCheck(id);
+    const timer = setInterval(() => {
+      void this.checkHealth(id);
+    }, SESSION_HEALTH_INTERVAL_MS);
+    this.healthTimers.set(id, timer);
+  }
+
+  private stopHealthCheck(id: string): void {
+    const timer = this.healthTimers.get(id);
+    if (timer) {
+      clearInterval(timer);
+      this.healthTimers.delete(id);
+    }
+  }
+
+  private async probeClient(id: string): Promise<boolean> {
+    const client = this.clients.get(id);
+    if (!client) {
+      return false;
+    }
+    try {
+      if (!(await client.isAuthorized())) {
+        return false;
+      }
+      await client.getMe();
+      return true;
+    } catch (error) {
+      if (isSessionRevokedError(error)) {
+        return false;
+      }
+      return true;
+    }
+  }
+
+  private async checkHealth(id: string): Promise<void> {
+    if (!this.clients.has(id)) {
+      this.stopHealthCheck(id);
+      return;
+    }
+    const healthy = await this.probeClient(id);
+    if (!healthy) {
+      await this.handleSessionLost(
+        id,
+        'Session was terminated remotely — log in again',
+      );
+    }
+  }
+
+  /** Clears a revoked/invalid session and marks the instance as errored. */
+  async handleSessionLost(id: string, reason: string): Promise<void> {
+    if (this.sessionLostBusy.has(id)) {
+      return;
+    }
+    this.sessionLostBusy.add(id);
+    try {
+      this.logger.warn(`Session lost for instance ${id}: ${reason}`);
+      this.sessionErrorMessages.set(id, reason);
+      await this.detach(id);
+      await this.session.deleteSession(id);
+      await this.instances.update(id, {
+        status: 'error',
+        firstName: null,
+        username: null,
+        phone: null,
+        tgUserId: null,
+      });
+      this.publishStatus(id, 'error', { message: reason });
+    } finally {
+      this.sessionLostBusy.delete(id);
+    }
   }
 
   /** Public view plus live connection state and uptime, for the info panel. */
@@ -248,6 +372,177 @@ export class TelegramManager
     return true;
   }
 
+  /**
+   * Starts a phone-number login: Telegram sends a code to the user's app/SMS.
+   * Resolves once the code has been dispatched (instance status → awaiting_code).
+   */
+  async startPhoneLogin(id: string, phone: string): Promise<void> {
+    const instance = await this.instances.get(id);
+    if (!instance) {
+      throw new Error('Instance not found');
+    }
+    const engine = this.registry.tryGet(instance.engine);
+    if (!engine?.isAvailable() || !engine.capabilities.phoneLogin) {
+      throw new Error(
+        `Engine "${instance.engine}" does not support phone login`,
+      );
+    }
+
+    this.cancelPhoneLogin(id);
+
+    const codeSent = new Promise<void>((resolve, reject) => {
+      this.phoneCodeSent.set(id, resolve);
+      void this.runPhoneLogin(id, phone, instance.engine).catch(reject);
+    });
+
+    await codeSent;
+  }
+
+  /**
+   * Submits the OTP received via Telegram. Returns the next step
+   * (`password_required` or `authorized`).
+   */
+  submitPhoneCode(id: string, code: string): Promise<PhoneLoginStepResult> {
+    const resolver = this.pendingPhoneCodes.get(id);
+    if (!resolver) {
+      throw new Error('No phone login is awaiting a code for this instance');
+    }
+    this.pendingPhoneCodes.delete(id);
+    const step = this.waitPhoneLoginStep(id);
+    resolver(code);
+    return step;
+  }
+
+  /** Waits for the phone login to finish after a 2FA password was submitted. */
+  awaitPhoneLoginAfterPassword(
+    id: string,
+  ): Promise<PhoneLoginStepResult | null> {
+    if (!this.phoneLoginClients.has(id)) {
+      return Promise.resolve(null);
+    }
+    return this.waitPhoneLoginStep(id);
+  }
+
+  /** True while a phone login session is in progress (before authorized). */
+  isPhoneLoginPending(id: string): boolean {
+    return this.phoneLoginClients.has(id);
+  }
+
+  /** Aborts an in-progress phone login and disconnects the transient client. */
+  cancelPhoneLogin(id: string): void {
+    this.phoneCodeSent.delete(id);
+    this.pendingPhoneCodes.delete(id);
+    this.rejectPhoneLoginStep(id, 'Login cancelled');
+    const client = this.phoneLoginClients.get(id);
+    this.phoneLoginClients.delete(id);
+    void client?.disconnect().catch(() => undefined);
+  }
+
+  private waitPhoneLoginStep(id: string): Promise<PhoneLoginStepResult> {
+    return new Promise((resolve, reject) => {
+      this.phoneLoginSteps.set(id, { resolve, reject });
+    });
+  }
+
+  private resolvePhoneLoginStep(
+    id: string,
+    result: PhoneLoginStepResult,
+  ): void {
+    const waiter = this.phoneLoginSteps.get(id);
+    if (waiter) {
+      this.phoneLoginSteps.delete(id);
+      waiter.resolve(result);
+    }
+  }
+
+  private rejectPhoneLoginStep(id: string, message: string): void {
+    const waiter = this.phoneLoginSteps.get(id);
+    if (waiter) {
+      this.phoneLoginSteps.delete(id);
+      waiter.reject(new Error(message));
+    }
+  }
+
+  private async runPhoneLogin(
+    id: string,
+    phone: string,
+    engineKey: EngineKey,
+  ): Promise<void> {
+    const engine = this.registry.tryGet(engineKey);
+    if (!engine) {
+      throw new Error(`Engine "${engineKey}" is not available`);
+    }
+
+    let client: EngineClient | undefined;
+    try {
+      const config = await this.resolveConfig(id);
+      client = await engine.connect('', config);
+      this.phoneLoginClients.set(id, client);
+      await this.instances.update(id, { status: 'connecting' });
+
+      const me = await client.phoneLogin!(phone, {
+        onCodeSent: () => {
+          void this.instances.update(id, { status: 'awaiting_code' });
+          const notify = this.phoneCodeSent.get(id);
+          if (notify) {
+            this.phoneCodeSent.delete(id);
+            notify();
+          }
+        },
+        onCodeRequired: () => this.awaitPhoneCode(id),
+        onPasswordRequired: async () => {
+          await this.instances.update(id, { status: 'password_required' });
+          this.resolvePhoneLoginStep(id, { status: 'password_required' });
+          return this.awaitPassword(id);
+        },
+      });
+
+      await this.finishLogin(id, client, me);
+      this.resolvePhoneLoginStep(id, { status: 'authorized', me });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown error';
+      await this.instances.update(id, { status: 'error' });
+      await client?.disconnect().catch(() => undefined);
+      this.phoneLoginClients.delete(id);
+      this.rejectPhoneLoginStep(id, message);
+      const notify = this.phoneCodeSent.get(id);
+      if (notify) {
+        this.phoneCodeSent.delete(id);
+        notify();
+      }
+      throw new Error(message, { cause: error });
+    } finally {
+      this.pendingPhoneCodes.delete(id);
+      this.pendingPasswords.delete(id);
+      this.phoneCodeSent.delete(id);
+    }
+  }
+
+  private async finishLogin(
+    id: string,
+    client: EngineClient,
+    me: TelegramMe,
+  ): Promise<void> {
+    this.phoneLoginClients.delete(id);
+    await this.session.saveSession(id, client.saveSession());
+    this.attach(id, client);
+    await this.instances.update(id, {
+      status: 'authorized',
+      firstName: me.firstName,
+      username: me.username,
+      phone: me.phone,
+    });
+    this.publishStatus(id, 'authorized', {
+      username: me.username,
+      phone: me.phone,
+    });
+    void this.sync.onAuthorized(id, client);
+  }
+
+  private awaitPhoneCode(id: string): Promise<string> {
+    return new Promise((resolve) => this.pendingPhoneCodes.set(id, resolve));
+  }
+
   private async runQrLogin(
     id: string,
     subject: Subject<QrLoginEvent>,
@@ -285,20 +580,8 @@ export class TelegramManager
         },
       });
 
-      await this.session.saveSession(id, client.saveSession());
-      this.attach(id, client);
-      await this.instances.update(id, {
-        status: 'authorized',
-        firstName: me.firstName,
-        username: me.username,
-        phone: me.phone,
-      });
+      await this.finishLogin(id, client, me);
       subject.next({ type: 'authorized', me });
-      this.publishStatus(id, 'authorized', {
-        username: me.username,
-        phone: me.phone,
-      });
-      void this.sync.onAuthorized(id, client);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown error';
       await this.instances.update(id, { status: 'error' });
@@ -325,36 +608,69 @@ export class TelegramManager
     if (!engine || !engine.isAvailable()) {
       return;
     }
-    const session = await this.session.loadSession(instance.id);
-    if (!session) {
+    const sessionStr = await this.session.loadSession(instance.id);
+    if (!sessionStr) {
       return;
     }
+    let client: EngineClient | undefined;
     try {
       const config = await this.resolveConfig(instance.id);
-      const client = await engine.connect(session, config);
+      client = await engine.connect(sessionStr, config);
       const authorized = await client.isAuthorized();
-      this.attach(instance.id, client);
-      const me = authorized ? await client.getMe().catch(() => null) : null;
-      await this.instances.update(instance.id, {
-        status: authorized ? 'authorized' : 'disconnected',
-        firstName: me?.firstName,
-        username: me?.username,
-        phone: me?.phone,
-      });
-      this.publishStatus(
-        instance.id,
-        authorized ? 'authorized' : 'disconnected',
-        { username: me?.username, phone: me?.phone },
-      );
-      if (authorized) {
-        void this.sync.onAuthorized(instance.id, client);
+      if (!authorized) {
+        await client.disconnect().catch(() => undefined);
+        await this.session.deleteSession(instance.id);
+        await this.instances.update(instance.id, {
+          status: 'disconnected',
+          firstName: null,
+          username: null,
+          phone: null,
+          tgUserId: null,
+        });
+        this.publishStatus(instance.id, 'disconnected');
+        return;
       }
+      const me = await client.getMe().catch(async (error: unknown) => {
+        await client!.disconnect().catch(() => undefined);
+        if (isSessionRevokedError(error)) {
+          await this.handleSessionLost(
+            instance.id,
+            sessionRevokedMessage(error),
+          );
+          return null;
+        }
+        throw error;
+      });
+      if (!me) {
+        return;
+      }
+      this.attach(instance.id, client);
+      await this.instances.update(instance.id, {
+        status: 'authorized',
+        firstName: me.firstName,
+        username: me.username,
+        phone: me.phone,
+      });
+      this.publishStatus(instance.id, 'authorized', {
+        username: me.username,
+        phone: me.phone,
+      });
+      void this.sync.onAuthorized(instance.id, client);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown error';
       this.logger.error(
         `Failed to restore instance ${instance.id}: ${message}`,
       );
-      await this.instances.update(instance.id, { status: 'error' });
+      await client?.disconnect().catch(() => undefined);
+      this.sessionErrorMessages.set(instance.id, message);
+      await this.session.deleteSession(instance.id);
+      await this.instances.update(instance.id, {
+        status: 'error',
+        firstName: null,
+        username: null,
+        phone: null,
+        tgUserId: null,
+      });
       this.publishStatus(instance.id, 'error', { message });
     }
   }

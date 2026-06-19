@@ -41,7 +41,7 @@
 
 O Flux conecta uma ou mais contas do Telegram (via MTProto) e transforma cada uma numa **instância** gerenciável por HTTP. Com ele você consegue:
 
-- Conectar contas por **QR code + 2FA**, com a sessão persistida e reconexão automática.
+- Conectar contas por **QR code ou telefone (OTP) + 2FA**, com a sessão persistida e reconexão automática.
 - **Ler chats e histórico**, **enviar mensagens e mídia**, e baixar avatares/anexos.
 - Receber **eventos em tempo real** (mensagens novas/editadas/apagadas, recibos de leitura, reações, status da sessão) por SSE **e** por **webhooks** duráveis e assinados.
 - Operar tudo por um **dashboard** ou direto pela **API** (com OpenAPI/Scalar em `/docs`).
@@ -262,28 +262,24 @@ Demais proteções:
 
 ## Permissões & acesso
 
-Dois eixos de autorização: um **papel global** por usuário e um **papel por instância**.
+Autorização **global por usuário**: um único papel no dashboard vale para **todas** as instâncias. Não há papéis por instância.
 
-### Papel global (`User.role`)
-- **`admin`** — superusuário: enxerga e opera **todas** as instâncias, gerencia usuários e papéis. O usuário semeado (`SEED_*`) é promovido a admin no boot.
-- **`member`** — usuário comum: acesso definido pelos papéis por instância.
+### Papéis do dashboard (`User.role`)
 
-### Papel por instância (`InstanceMember`)
-Todo usuário autenticado tem o baseline **`viewer`** em qualquer instância (visibilidade é aberta). Uma associação explícita eleva para **`operator`** ou **`owner`**. O criador da instância vira `owner`.
+| Permissão                            | viewer | operator | admin |
+| ------------------------------------ | :----: | :------: | :---: |
+| Ver instâncias / chats / mensagens   |   ✅   |    ✅    |  ✅   |
+| Enviar mensagem / mídia              |   —    |    ✅    |  ✅   |
+| Iniciar / parar / login (lifecycle)  |   —    |    ✅    |  ✅   |
+| Criar / excluir instâncias           |   —    |    ✅    |  ✅   |
+| Gerenciar webhooks                   |   —    |    ✅    |  ✅   |
+| Listar / alterar usuários (global)   |   —    |    —     |  ✅   |
 
-| Permissão                            | viewer | operator | owner | admin |
-| ------------------------------------ | :----: | :------: | :---: | :---: |
-| Ver instância / chats / mensagens    |   ✅   |    ✅    |  ✅   |  ✅   |
-| Enviar mensagem / mídia              |   —    |    ✅    |  ✅   |  ✅   |
-| Iniciar / parar / login (lifecycle)  |   —    |    ✅    |  ✅   |  ✅   |
-| Gerenciar webhooks da instância      |   —    |    ✅    |  ✅   |  ✅   |
-| Ver / gerenciar membros              |   —    | ver only |  ✅   |  ✅   |
-| Atualizar / excluir instância        |   —    |    —     |  ✅   |  ✅   |
-| Gerenciar usuários e papéis (global) |   —    |    —     |  —    |  ✅   |
+- **`viewer`** — somente leitura no dashboard.
+- **`operator`** — opera instâncias, envia mensagens e gerencia webhooks.
+- **`admin`** — tudo acima + gerencia usuários e papéis. O usuário semeado (`SEED_*`) é promovido a admin no boot.
 
-Resolução: `admin` → tudo; senão `InstanceMember` (`owner`/`operator`); senão `viewer`. O último `owner` de uma instância não pode ser removido nem rebaixado.
-
-**Enforcement:** rotas por instância usam `@RequireInstancePermission(...)` + `InstanceAccessGuard`; rotas globais usam `@Roles('admin')` + `RolesGuard`. Respostas `GET` de instância incluem `myRole` (papel efetivo do solicitante) para a UI esconder ações não permitidas. Vincular um webhook a uma instância exige `webhook:manage` nela.
+**Enforcement:** rotas por instância usam `@RequireInstancePermission(...)` + `InstanceAccessGuard` (resolve permissões pelo papel global via `AccessService`); rotas de usuários usam `@Roles('admin')` + `RolesGuard`. Respostas `GET` de instância incluem `myRole` (papel global do solicitante) para a UI esconder ações não permitidas.
 
 ---
 
@@ -293,24 +289,18 @@ Prisma 7 + PostgreSQL. Cascade a partir de `User` / `Instance` / `Webhook`.
 
 ```
 User ─┬─ instances[]            (contas Telegram criadas pelo usuário)
-      ├─ webhooks[]             (webhooks do usuário)
-      └─ memberships[]          (acesso por instância — M2M)
-   id, email, username, role(Role: admin|member), createdAt
+      └─ webhooks[]             (webhooks do usuário)
+   id, email, username, role(Role: admin|operator|viewer), createdAt
 
 Setting                         key (PK) → telegram.apiId, telegram.apiHash (cifrado)
 
 Instance ─┬─ chats[]
           ├─ contacts[]
           ├─ messages[]
-          ├─ members[]          (M2M com User via InstanceMember)
           └─ webhookLinks[]     (M2M com Webhook)
    id, ownerId, label, engine, status, apiId?, apiHashEnc?, tgUserId?, username?, phone?, createdAt
 
-InstanceMember   @@id([instanceId, userId])     (join M2M de acesso)
-   role(InstanceRole: owner|operator|viewer), createdAt
-
-enum Role          { admin  member }
-enum InstanceRole  { owner  operator  viewer }
+enum Role          { admin  operator  viewer }
 
 Chat        id, instanceId, tgPeerId, type(user|group|channel), title?, username?, lastMessageAt?
 Contact     id, instanceId, tgUserId, firstName?, lastName?, username?, phone?, isContact
@@ -342,13 +332,12 @@ interface InstanceView   { id; label; engine; status; firstName?; username?; pho
 interface ChatView       { id; tgPeerId; type; title?; username?; hasPhoto; lastMessageAt? }
 interface MessageView    { id; chatId; tgMessageId; text?; outgoing; date; senderId?; sender?; media? }
 interface MediaView      { type; mimeType?; fileName?; width?; height?; duration? }
-type     InstanceStatus  = 'new'|'connecting'|'awaiting_qr'|'password_required'|'authorized'|'disconnected'|'error'
+type     InstanceStatus  = 'new'|'connecting'|'awaiting_qr'|'awaiting_code'|'password_required'|'authorized'|'disconnected'|'error'
 
 // Auth & acesso
-interface UserEntity      { id; email; username; role: 'admin'|'member' }  // nunca expõe o hash
+interface UserEntity      { id; email; username; role: 'admin'|'operator'|'viewer' }  // nunca expõe o hash
 interface LoginResponse   { accessToken }                          // JWT também vai no cookie httpOnly
-interface InstanceMember  { userId; username; email; role: 'owner'|'operator'|'viewer'; createdAt }
-// InstanceView ganha `myRole?: 'admin'|'owner'|'operator'|'viewer'` (papel do solicitante)
+// InstanceView ganha `myRole?: 'admin'|'operator'|'viewer'` (papel global do solicitante)
 
 // Webhooks
 interface WebhookView           { id; name; url; active; events[]; instanceIds[]; createdAt; updatedAt }
@@ -366,7 +355,7 @@ interface WebhookDeliveryView   { id; webhookId; instanceId?; event; status; att
 
 | Rota                   | Método | Auth         | Descrição                                            |
 | ---------------------- | ------ | ------------ | ---------------------------------------------------- |
-| `/auth/register`       | POST   | Bearer JWT   | Cria um usuário (o usuário semeado cria os demais)   |
+| `/auth/register`       | POST   | Bearer JWT + API key | Cria um usuário (**só admin**; o 1º usuário semeado é admin) |
 | `/auth/login`          | POST   | pública      | Login; define cookie JWT httpOnly e retorna o token  |
 | `/auth/logout`         | POST   | pública      | Limpa o cookie de auth                               |
 | `/auth/me`             | GET    | Bearer JWT   | Usuário atual (não exige API key)                    |
@@ -391,8 +380,11 @@ interface WebhookDeliveryView   { id; webhookId; instanceId?; event; status; att
 | `/telegram/instances/:id/info`               | GET    | Detalhes + estado de conexão ao vivo + uptime           |
 | `/telegram/instances/:id/start`              | POST   | Conecta a partir da sessão salva                         |
 | `/telegram/instances/:id/stop`               | POST   | Desconecta (mantém a sessão)                             |
-| `/telegram/instances/:id/login/qr`           | SSE    | Stream do login: `qr` → `password_required` → `authorized` |
-| `/telegram/instances/:id/login/password`     | POST   | Envia a senha 2FA de um login QR pendente               |
+| `/telegram/instances/status/stream`          | SSE    | Stream de transições de status de todas as instâncias    |
+| `/telegram/instances/:id/login/qr`           | SSE    | Stream do login por QR: `qr` → `password_required` → `authorized` |
+| `/telegram/instances/:id/login/phone`        | POST   | Inicia login por telefone `{phone: "+5511…"}` — Telegram envia código |
+| `/telegram/instances/:id/login/code`         | POST   | Envia o OTP `{code: "12345"}` → `password_required` ou `authorized` |
+| `/telegram/instances/:id/login/password`     | POST   | Envia a senha 2FA (login QR ou telefone); pode retornar `{ ok, me? }` |
 
 ### Telegram — chats, mensagens & mídia
 
@@ -407,15 +399,6 @@ interface WebhookDeliveryView   { id; webhookId; instanceId?; event; status; att
 | `/telegram/instances/:id/contacts/:contactId/photo`             | GET    | Avatar do contato (bytes)                        |
 | `/telegram/instances/:id/chats/:chatId/messages/:messageId/media` | GET  | Anexo da mensagem (bytes, download lazy)        |
 
-### Telegram — membros (acesso por instância)
-
-| Rota                                          | Método | Permissão       | Descrição                               |
-| --------------------------------------------- | ------ | --------------- | --------------------------------------- |
-| `/telegram/instances/:id/members`             | GET    | `member:read`   | Lista usuários com acesso à instância   |
-| `/telegram/instances/:id/members`             | POST   | `member:manage` | Concede acesso `{userId, role}`         |
-| `/telegram/instances/:id/members/:userId`     | PATCH  | `member:manage` | Altera o papel de um membro `{role}`    |
-| `/telegram/instances/:id/members/:userId`     | DELETE | `member:manage` | Revoga o acesso de um usuário           |
-
 ### Webhooks (`webhooks`)
 
 | Rota                                          | Método | Descrição                                          |
@@ -427,7 +410,7 @@ interface WebhookDeliveryView   { id; webhookId; instanceId?; event; status; att
 | `/webhooks/:id`                               | PATCH  | Atualiza (nome, url, ativo, eventos)               |
 | `/webhooks/:id`                               | DELETE | Remove o webhook e suas entregas                   |
 | `/webhooks/:id/regenerate-secret`             | POST   | Rotaciona o secret de assinatura (retorna uma vez) |
-| `/webhooks/:id/instances/:instanceId`         | POST   | Vincula uma instância (M2M; exige `webhook:manage` na instância) |
+| `/webhooks/:id/instances/:instanceId`         | POST   | Vincula uma instância (M2M; exige a permissão `webhook:manage`) |
 | `/webhooks/:id/instances/:instanceId`         | DELETE | Desvincula uma instância                           |
 | `/webhooks/:id/deliveries`                    | GET    | Log de entregas (`?limit=`, default 50)            |
 | `/webhooks/deliveries/:deliveryId/resend`     | POST   | Re-enfileira uma entrega para reenvio imediato     |
@@ -441,8 +424,10 @@ interface WebhookDeliveryView   { id; webhookId; instanceId?; event; status; att
 
 | Rota              | Método | Auth                  | Descrição                                                    |
 | ----------------- | ------ | --------------------- | ----------------------------------------------------------- |
-| `/users`          | GET    | Bearer JWT + API key  | Lista os usuários cadastrados                               |
-| `/users/:id/role` | PATCH  | Bearer JWT + API key  | Altera o papel global `{role: 'admin'\|'member'}` (só `admin`) |
+| `/users`          | GET    | Bearer JWT + API key  | Lista os usuários cadastrados (só `admin`)                  |
+| `/users/:id/role` | PATCH  | Bearer JWT + API key  | Altera o papel global `{role: 'admin'\|'operator'\|'viewer'}` (só `admin`) |
+| `/users/:id`      | PATCH  | Bearer JWT + API key  | Edita usuário `{email?, username?, password?, role?}` (só `admin`) |
+| `/users/:id`      | DELETE | Bearer JWT + API key  | Exclui usuário e cascateia instâncias/webhooks (só `admin`; não pode excluir a si mesmo) |
 | `/`               | GET    | pública               | Redireciona para `/dashboard`                              |
 | `/health`         | GET    | pública               | Postgres + Redis + Telegram + heap                         |
 | `/docs`           | GET    | pública               | Scalar API Reference (OpenAPI)                             |
@@ -455,10 +440,10 @@ interface WebhookDeliveryView   { id; webhookId; instanceId?; event; status; att
 Vue 3 + TypeScript + Tailwind, servido em `/dashboard`.
 
 - **Overview** — uptime, contagem e saúde das instâncias, total de webhooks.
-- **Instâncias** — criar, conectar via QR, iniciar/parar, detalhes, abrir chats.
+- **Instâncias** — criar, conectar via QR ou telefone, iniciar/parar, detalhes, abrir chats.
 - **Chats** — listar diálogos, ler histórico paginado, enviar texto e mídia, realtime.
 - **Webhooks** — criar/editar (eventos + instâncias), ativar/desativar, ver entregas (status/código/tentativas) e reenviar, rotacionar secret.
-- **Usuários** — listar contas do dashboard.
+- **Usuários** — listar contas e, como admin, criar, editar (email/usuário/senha/papel) e excluir usuários.
 - **Configurações** — definir `api_id`/`api_hash`, testar `x-api-key`.
 - **Ajuda** — guia passo a passo. **i18n**: Inglês + Português (BR).
 

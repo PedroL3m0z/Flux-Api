@@ -6,11 +6,11 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
-import type { GlobalRole } from './permissions';
+import type { UserRole } from './permissions';
 import { ROLES_KEY } from './roles.decorator';
 
 interface RequestWithUser extends Request {
-  user?: { role?: GlobalRole };
+  user?: { role?: UserRole };
 }
 
 /**
@@ -22,7 +22,7 @@ export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const roles = this.reflector.getAllAndOverride<GlobalRole[] | undefined>(
+    const roles = this.reflector.getAllAndOverride<UserRole[] | undefined>(
       ROLES_KEY,
       [context.getHandler(), context.getClass()],
     );

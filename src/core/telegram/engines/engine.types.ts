@@ -26,6 +26,8 @@ export type EngineConfig = Record<string, string | undefined>;
 export interface EngineCapabilities {
   /** MTProto QR login (e.g. GramJS user accounts). */
   qrLogin: boolean;
+  /** MTProto phone + SMS/app code login (e.g. GramJS user accounts). */
+  phoneLogin: boolean;
   /** Bot API login via a bot token (e.g. Telegraf). */
   botToken: boolean;
   /** Can list dialogs / read history / send messages / receive updates. */
@@ -149,6 +151,16 @@ export interface QrCallbacks {
   onPasswordRequired(): Promise<string>;
 }
 
+/** Callbacks the manager passes into an engine's phone login flow. */
+export interface PhoneCallbacks {
+  /** Called once Telegram has sent the login code to the user's app/SMS. */
+  onCodeSent(): void;
+  /** Resolves with the OTP the user received. */
+  onCodeRequired(): Promise<string>;
+  /** Resolves with the 2FA password when the account has it enabled. */
+  onPasswordRequired(): Promise<string>;
+}
+
 /**
  * A live, connected handle to one instance's underlying client. Engine-specific
  * implementations wrap their native client (GramJS TelegramClient, Telegraf Bot,
@@ -162,6 +174,8 @@ export interface EngineClient {
   saveSession(): string;
   /** Present only when capabilities.qrLogin is true. */
   qrLogin?(callbacks: QrCallbacks): Promise<TelegramMe>;
+  /** Present only when capabilities.phoneLogin is true. */
+  phoneLogin?(phone: string, callbacks: PhoneCallbacks): Promise<TelegramMe>;
 
   // --- Messaging (present only when capabilities.messaging is true) ---
   listDialogs?(limit?: number): Promise<DialogSnapshot[]>;

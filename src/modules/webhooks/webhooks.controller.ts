@@ -26,7 +26,7 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { EVENT_TYPES } from '../../core/telegram/services/telegram-events.service';
-import { InstanceAccessService } from '../../core/telegram/services/instance-access.service';
+import { AccessService } from '../../common/authz/access.service';
 import { WebhooksService } from '../../core/webhooks/webhooks.service';
 import type { SafeUser } from '../auth/auth.service';
 import { CreateWebhookDto } from './dto/create-webhook.dto';
@@ -44,7 +44,7 @@ import {
 export class WebhooksController {
   constructor(
     private readonly webhooks: WebhooksService,
-    private readonly access: InstanceAccessService,
+    private readonly access: AccessService,
   ) {}
 
   @Get('event-types')
@@ -130,17 +130,15 @@ export class WebhooksController {
   @ApiParam({ name: 'instanceId', description: 'Instance id to link' })
   @ApiOkResponse({ type: WebhookEntity })
   @ApiForbiddenResponse({
-    description: 'Requires webhook:manage on the target instance',
+    description: 'Requires the webhook:manage permission',
   })
   async link(
     @CurrentUser() user: SafeUser,
     @Param('id') id: string,
     @Param('instanceId') instanceId: string,
   ) {
-    if (!(await this.access.can(user, instanceId, 'webhook:manage'))) {
-      throw new ForbiddenException(
-        'Missing permission "webhook:manage" on this instance',
-      );
+    if (!this.access.can(user, 'webhook:manage')) {
+      throw new ForbiddenException('Missing permission "webhook:manage"');
     }
     return this.webhooks.linkInstance(user.id, id, instanceId);
   }

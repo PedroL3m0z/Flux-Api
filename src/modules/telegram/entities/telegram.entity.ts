@@ -5,6 +5,7 @@ const INSTANCE_STATUS = [
   'new',
   'connecting',
   'awaiting_qr',
+  'awaiting_code',
   'password_required',
   'authorized',
   'disconnected',
@@ -60,11 +61,11 @@ export class InstanceEntity {
   createdAt!: string;
 
   @ApiPropertyOptional({
-    enum: ['admin', 'owner', 'operator', 'viewer'],
-    example: 'owner',
-    description: "Caller's effective role on this instance",
+    enum: ['admin', 'operator', 'viewer'],
+    example: 'operator',
+    description: "Caller's global dashboard role",
   })
-  myRole?: 'admin' | 'owner' | 'operator' | 'viewer';
+  myRole?: 'admin' | 'operator' | 'viewer';
 }
 
 /** Instance with live connection state, returned by the info endpoint. */

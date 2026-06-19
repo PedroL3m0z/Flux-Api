@@ -1,7 +1,20 @@
-import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBadRequestResponse,
   ApiForbiddenResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -10,7 +23,10 @@ import {
 } from '@nestjs/swagger';
 import { Roles } from '../../common/authz/roles.decorator';
 import { RolesGuard } from '../../common/authz/roles.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { SafeUser } from '../auth/auth.service';
 import { UserEntity } from '../auth/entities/auth.entity';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { UsersService } from './users.service';
 
@@ -23,8 +39,10 @@ export class UsersController {
   constructor(private readonly users: UsersService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List all registered users' })
+  @Roles('admin')
+  @ApiOperation({ summary: 'List all registered users (admin only)' })
   @ApiOkResponse({ type: [UserEntity] })
+  @ApiForbiddenResponse({ description: 'Requires the admin role' })
   findAll() {
     return this.users.findAll();
   }
@@ -34,12 +52,45 @@ export class UsersController {
   @ApiOperation({
     summary: "Set a user's global role (admin only)",
     description:
-      'Promotes or demotes a user between admin and member. Admins have full access to every instance and can manage users.',
+      'Sets the global dashboard role: admin (full access + user management), operator (manage instances, send messages, webhooks), or viewer (read-only).',
   })
   @ApiParam({ name: 'id', description: 'User id' })
   @ApiOkResponse({ type: UserEntity })
   @ApiForbiddenResponse({ description: 'Requires the admin role' })
   setRole(@Param('id') id: string, @Body() dto: UpdateUserRoleDto) {
     return this.users.setRole(id, dto.role);
+  }
+
+  @Patch(':id')
+  @Roles('admin')
+  @ApiOperation({
+    summary: 'Edit a user (admin only)',
+    description:
+      'Updates any of email, username, password or role. Only provided fields change.',
+  })
+  @ApiParam({ name: 'id', description: 'User id' })
+  @ApiOkResponse({ type: UserEntity })
+  @ApiForbiddenResponse({ description: 'Requires the admin role' })
+  update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
+    return this.users.update(id, dto);
+  }
+
+  @Delete(':id')
+  @Roles('admin')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Delete a user (admin only)',
+    description:
+      'Permanently deletes a user and cascades their instances and webhooks. You cannot delete your own account.',
+  })
+  @ApiParam({ name: 'id', description: 'User id' })
+  @ApiNoContentResponse({ description: 'User deleted' })
+  @ApiForbiddenResponse({ description: 'Requires the admin role' })
+  @ApiBadRequestResponse({ description: 'Cannot delete your own account' })
+  async remove(@CurrentUser() user: SafeUser, @Param('id') id: string) {
+    if (user.id === id) {
+      throw new BadRequestException('Cannot delete your own account');
+    }
+    await this.users.remove(id);
   }
 }

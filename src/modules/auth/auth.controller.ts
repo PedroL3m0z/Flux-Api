@@ -13,6 +13,7 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiOkResponse,
   ApiOperation,
   ApiSecurity,
@@ -21,6 +22,8 @@ import {
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { AuthService, type SafeUser } from './auth.service';
+import { Roles } from '../../common/authz/roles.decorator';
+import { RolesGuard } from '../../common/authz/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { NoApiKey } from '../../common/decorators/no-api-key.decorator';
@@ -63,12 +66,17 @@ export class AuthController {
   }
 
   @Post('register')
-  @NoApiKey()
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   @ApiBearerAuth()
+  @ApiSecurity('api-key')
   @ApiOperation({
-    summary: 'Create a user (JWT protected; the seeded user creates others)',
+    summary: 'Create a user (admin only)',
+    description:
+      'Registers a new dashboard account. Restricted to admins; the seeded first account is an admin and creates the others.',
   })
   @ApiCreatedResponse({ type: UserEntity })
+  @ApiForbiddenResponse({ description: 'Requires the admin role' })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }

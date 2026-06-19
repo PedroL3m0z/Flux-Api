@@ -7,10 +7,10 @@ import {
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import {
-  InstanceAccessService,
+  AccessService,
   type AccessPrincipal,
-  type InstanceAccess,
-} from '../../core/telegram/services/instance-access.service';
+  type UserAccess,
+} from './access.service';
 import type { Permission } from './permissions';
 import {
   INSTANCE_ID_PARAM_KEY,
@@ -19,23 +19,22 @@ import {
 
 interface RequestWithAccess extends Request {
   user?: AccessPrincipal;
-  instanceAccess?: InstanceAccess;
+  userAccess?: UserAccess;
 }
 
 /**
- * Enforces `@RequireInstancePermission(...)`. Resolves the caller's effective
- * access to the instance in the route param and rejects with 403 when the
- * required permission is missing. Routes without the decorator pass through.
- * The resolved access is attached to `request.instanceAccess`.
+ * Enforces `@RequireInstancePermission(...)`. Checks the caller's **global**
+ * dashboard role against the required permission. The route may still carry an
+ * instance id param for resource lookup; access is not scoped per instance.
  */
 @Injectable()
 export class InstanceAccessGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    private readonly access: InstanceAccessService,
+    private readonly access: AccessService,
   ) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  canActivate(context: ExecutionContext): boolean {
     const permission = this.reflector.getAllAndOverride<Permission | undefined>(
       INSTANCE_PERMISSION_KEY,
       [context.getHandler(), context.getClass()],
@@ -43,29 +42,24 @@ export class InstanceAccessGuard implements CanActivate {
     if (!permission) {
       return true;
     }
-    const idParam =
-      this.reflector.getAllAndOverride<string | undefined>(
-        INSTANCE_ID_PARAM_KEY,
-        [context.getHandler(), context.getClass()],
-      ) ?? 'id';
+
+    // Instance id param is validated by the controller; kept for route shape.
+    void this.reflector.getAllAndOverride<string | undefined>(
+      INSTANCE_ID_PARAM_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     const request = context.switchToHttp().getRequest<RequestWithAccess>();
     const user = request.user;
     if (!user) {
       throw new ForbiddenException('Not authenticated');
     }
-    const instanceId = (request.params as Record<string, string>)[idParam];
-    if (!instanceId) {
-      throw new ForbiddenException('Missing instance id');
-    }
 
-    const access = await this.access.resolve(user, instanceId);
+    const access = this.access.resolve(user);
     if (!access.permissions.has(permission)) {
-      throw new ForbiddenException(
-        `Missing permission "${permission}" on this instance`,
-      );
+      throw new ForbiddenException(`Missing permission "${permission}"`);
     }
-    request.instanceAccess = access;
+    request.userAccess = access;
     return true;
   }
 }

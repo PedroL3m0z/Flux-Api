@@ -20,13 +20,13 @@ describe('AuthService', () => {
     email: 'user@flux.dev',
     username: 'flux_user',
     password: 'hashed',
-    role: 'member' as const,
+    role: 'viewer' as const,
   };
   const safeUser = {
     id: 'u1',
     email: 'user@flux.dev',
     username: 'flux_user',
-    role: 'member' as const,
+    role: 'viewer' as const,
   };
 
   beforeEach(() => {
