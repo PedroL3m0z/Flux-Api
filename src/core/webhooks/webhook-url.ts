@@ -21,9 +21,7 @@ const BLOCKED_HOSTNAMES = new Set(['localhost']);
 /** Lowercases a URL hostname and unwraps an `[ipv6]` literal. */
 function unwrapHost(hostname: string): string {
   const host = hostname.toLowerCase();
-  return host.startsWith('[') && host.endsWith(']')
-    ? host.slice(1, -1)
-    : host;
+  return host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
 }
 
 /** True for loopback, private, link-local, CGNAT or otherwise reserved IPs. */

@@ -44,6 +44,12 @@ async function bootstrap() {
       `Generated API key (shown once — store it now): ${runtime.generatedApiKey}`,
     );
   }
+  if (runtime.generatedSeedPassword) {
+    const seedUser = config.get<string>('SEED_USERNAME', 'admin');
+    bootLogger.warn(
+      `Generated initial admin login (shown once — store it now): user "${seedUser}" / password ${runtime.generatedSeedPassword}`,
+    );
+  }
 
   // Parse cookies so the JWT can be read from an httpOnly cookie.
   app.use(cookieParser());

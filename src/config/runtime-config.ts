@@ -19,6 +19,10 @@ export const MANAGED_SECRETS = [
   'JWT_SECRET',
   'API_KEY',
   'TELEGRAM_SESSION_SECRET',
+  // Initial admin password. Generated and persisted so a fresh install has a
+  // working dashboard login without the operator declaring any credentials;
+  // SeedService creates the `admin` user from it on first boot.
+  'SEED_PASSWORD',
 ] as const;
 
 export type ManagedSecret = (typeof MANAGED_SECRETS)[number];
@@ -45,6 +49,8 @@ export interface RuntimeConfigResult {
   generated: ManagedSecret[];
   /** The freshly generated API key, returned once so it can be surfaced. */
   generatedApiKey?: string;
+  /** The freshly generated initial admin password, returned once to surface it. */
+  generatedSeedPassword?: string;
   /** True when DATABASE_URL was derived from defaults rather than provided. */
   databaseUrlDerived: boolean;
   /** Absolute path of the secrets file that backs the generated values. */
@@ -58,10 +64,15 @@ function isUsable(value: string | undefined): value is string {
 }
 
 function generateSecret(name: ManagedSecret): string {
-  // A readable, prefixed key for the gateway; raw hex for the rest.
-  return name === 'API_KEY'
-    ? `flux_${randomBytes(24).toString('base64url')}`
-    : randomBytes(32).toString('hex');
+  // A readable, prefixed key for the gateway; a typeable password for the
+  // initial admin; raw hex for the cryptographic secrets.
+  if (name === 'API_KEY') {
+    return `flux_${randomBytes(24).toString('base64url')}`;
+  }
+  if (name === 'SEED_PASSWORD') {
+    return randomBytes(18).toString('base64url'); // 24-char strong password
+  }
+  return randomBytes(32).toString('hex');
 }
 
 /**
@@ -148,6 +159,7 @@ export function bootstrapRuntimeConfig(
   const fileSecrets = loadSecretsFile(secretsPath);
   const generated: ManagedSecret[] = [];
   let generatedApiKey: string | undefined;
+  let generatedSeedPassword: string | undefined;
   let changed = false;
 
   for (const name of MANAGED_SECRETS) {
@@ -167,11 +179,20 @@ export function bootstrapRuntimeConfig(
     if (name === 'API_KEY') {
       generatedApiKey = value;
     }
+    if (name === 'SEED_PASSWORD') {
+      generatedSeedPassword = value;
+    }
   }
 
   if (changed) {
     persistSecretsFile(secretsPath, fileSecrets);
   }
 
-  return { generated, generatedApiKey, databaseUrlDerived, secretsPath };
+  return {
+    generated,
+    generatedApiKey,
+    generatedSeedPassword,
+    databaseUrlDerived,
+    secretsPath,
+  };
 }
