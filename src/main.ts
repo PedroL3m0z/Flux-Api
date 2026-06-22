@@ -8,7 +8,7 @@ import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { resolveCorsOrigin } from './config/cors';
-import { bootstrapRuntimeConfig } from './config/runtime-config';
+import { runtime } from './config/runtime';
 import { API_KEY_HEADER } from './modules/auth/strategies/api-key.strategy';
 
 // Telegram ids are int64 (BigInt), which JSON.stringify can't serialize.
@@ -20,11 +20,9 @@ import { API_KEY_HEADER } from './modules/auth/strategies/api-key.strategy';
 };
 
 async function bootstrap() {
-  // Resolve DATABASE_URL and the managed secrets (generating + persisting them
-  // when absent) before Nest reads the environment, so the app boots with
-  // near-zero configuration without weakening security.
-  const runtime = bootstrapRuntimeConfig();
-
+  // `runtime` (imported from ./config/runtime) already resolved DATABASE_URL and
+  // the managed secrets at import time — before ConfigModule validated the env —
+  // so the app boots with near-zero configuration without weakening security.
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
 
