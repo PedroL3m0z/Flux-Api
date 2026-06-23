@@ -9,6 +9,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../../../common/decorators/public.decorator';
 import { NO_API_KEY } from '../../../common/decorators/no-api-key.decorator';
+import { safeEqual } from '../../../common/security/safe-compare';
 import { API_KEY_HEADER } from '../strategies/api-key.strategy';
 
 /**
@@ -47,7 +48,7 @@ export class GlobalApiKeyGuard implements CanActivate {
       fromHeader ?? (typeof fromQuery === 'string' ? fromQuery : undefined);
 
     const expected = this.config.get<string>('API_KEY');
-    if (expected && provided === expected) {
+    if (expected && safeEqual(provided, expected)) {
       return true;
     }
     throw new UnauthorizedException('Missing or invalid API key');
