@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertSafeWebhookUrl } from './webhook-url';
 import type { Prisma } from '../prisma/generated/client';
 import type { EventType } from '../telegram/services/telegram-events.service';
 import type {
@@ -68,6 +69,7 @@ export class WebhooksService {
     ownerId: string,
     input: CreateInput,
   ): Promise<WebhookWithSecret> {
+    assertSafeWebhookUrl(input.url);
     const secret = this.newSecret();
     const row = await this.prisma.webhook.create({
       data: {
@@ -121,6 +123,9 @@ export class WebhooksService {
     patch: UpdateInput,
   ): Promise<WebhookView> {
     await this.owned(ownerId, id);
+    if (patch.url !== undefined) {
+      assertSafeWebhookUrl(patch.url);
+    }
     const row = await this.prisma.webhook.update({
       where: { id },
       data: {

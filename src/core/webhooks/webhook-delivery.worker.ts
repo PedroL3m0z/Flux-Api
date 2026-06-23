@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { signPayload } from './webhook-signature';
+import { assertSafeResolvedUrl } from './webhook-url';
 import { MAX_ATTEMPTS, RETRY_BACKOFF_SECONDS } from './webhook.types';
 
 const POLL_MS = 5000;
@@ -86,6 +87,9 @@ export class WebhookDeliveryWorker
     const body = JSON.stringify(delivery.payload);
     let statusCode: number | undefined;
     try {
+      // SSRF guard: re-check the target (incl. DNS resolution) right before the
+      // request, so a webhook can never be used to reach internal addresses.
+      await assertSafeResolvedUrl(delivery.webhook.url);
       const res = await fetch(delivery.webhook.url, {
         method: 'POST',
         headers: {

@@ -5,7 +5,7 @@ import { SeedService } from './seed.service';
 
 describe('SeedService', () => {
   let users: jest.Mocked<
-    Pick<UsersService, 'findByEmailOrUsername' | 'setRole'>
+    Pick<UsersService, 'findByEmailOrUsername' | 'setRole' | 'count'>
   >;
   let auth: jest.Mocked<Pick<AuthService, 'register'>>;
 
@@ -13,7 +13,11 @@ describe('SeedService', () => {
     const config = {
       get: jest.fn((key: string) => env[key]),
     } as unknown as ConfigService;
-    users = { findByEmailOrUsername: jest.fn(), setRole: jest.fn() };
+    users = {
+      findByEmailOrUsername: jest.fn(),
+      setRole: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
+    };
     auth = { register: jest.fn() };
     return new SeedService(
       config,
@@ -28,11 +32,59 @@ describe('SeedService', () => {
     SEED_PASSWORD: 'S3cureP@ss',
   };
 
-  it('does nothing when seed vars are missing', async () => {
-    const svc = make({ SEED_USERNAME: 'admin' }); // incomplete
+  it('does nothing when no SEED_PASSWORD is available', async () => {
+    const svc = make({ SEED_USERNAME: 'admin' }); // no password
     await svc.onApplicationBootstrap();
     expect(users.findByEmailOrUsername).not.toHaveBeenCalled();
     expect(auth.register).not.toHaveBeenCalled();
+  });
+
+  it('auto-seeds a default admin on a fresh install (password only)', async () => {
+    const svc = make({ SEED_PASSWORD: 'generated-pass' });
+    users.count.mockResolvedValue(0);
+    users.findByEmailOrUsername.mockResolvedValue(null);
+    auth.register.mockResolvedValue({
+      id: 'u1',
+      email: 'admin@flux.local',
+      username: 'admin',
+      role: 'viewer',
+    });
+
+    await svc.onApplicationBootstrap();
+
+    expect(auth.register).toHaveBeenCalledWith({
+      email: 'admin@flux.local',
+      username: 'admin',
+      password: 'generated-pass',
+    });
+    expect(users.setRole).toHaveBeenCalledWith('u1', 'admin');
+  });
+
+  it('does not auto-seed when users already exist (no explicit creds)', async () => {
+    const svc = make({ SEED_PASSWORD: 'generated-pass' });
+    users.count.mockResolvedValue(3);
+
+    await svc.onApplicationBootstrap();
+
+    expect(users.findByEmailOrUsername).not.toHaveBeenCalled();
+    expect(auth.register).not.toHaveBeenCalled();
+  });
+
+  it('seeds explicit creds even when users already exist', async () => {
+    const svc = make(full);
+    users.count.mockResolvedValue(5);
+    users.findByEmailOrUsername.mockResolvedValue(null);
+    auth.register.mockResolvedValue({
+      id: 'u1',
+      email: 'admin@flux.dev',
+      username: 'admin',
+      role: 'viewer',
+    });
+
+    await svc.onApplicationBootstrap();
+
+    expect(users.count).not.toHaveBeenCalled();
+    expect(auth.register).toHaveBeenCalled();
   });
 
   it('registers the user as admin when absent', async () => {

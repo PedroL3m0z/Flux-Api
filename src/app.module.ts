@@ -1,3 +1,7 @@
+// Side-effect import: generates/derives DATABASE_URL and managed secrets into
+// process.env BEFORE ConfigModule.forRoot (below) validates the environment.
+// Must stay first so the env is populated when `forRoot` runs eagerly.
+import './config/runtime';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';

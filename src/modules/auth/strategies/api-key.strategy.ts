@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { HeaderAPIKeyStrategy } from 'passport-headerapikey';
+import { safeEqual } from '../../../common/security/safe-compare';
 
 export const API_KEY_HEADER = 'x-api-key';
 
@@ -18,7 +19,7 @@ export class ApiKeyStrategy extends PassportStrategy(
 
   validate(apiKey: string): boolean {
     const expected = this.config.get<string>('API_KEY');
-    if (expected && apiKey === expected) {
+    if (expected && safeEqual(apiKey, expected)) {
       return true;
     }
     throw new UnauthorizedException('Invalid API key');
