@@ -49,7 +49,7 @@ const schema = toTypedSchema(
     password: z.string().min(8, t('validation.min', { n: 8 })),
   }),
 )
-const { handleSubmit, errors, defineField, resetForm } = useForm({ validationSchema: schema })
+const { handleSubmit, errors, defineField } = useForm({ validationSchema: schema })
 const [username, usernameAttrs] = defineField('username')
 const [password, passwordAttrs] = defineField('password')
 
