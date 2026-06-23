@@ -64,6 +64,11 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { id } });
   }
 
+  /** Total number of users (used to gate first-boot seeding). */
+  async count(): Promise<number> {
+    return this.prisma.user.count();
+  }
+
   /** All users, newest first, without the password field. */
   async findAll() {
     return this.prisma.user.findMany({
