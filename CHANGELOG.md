@@ -5,6 +5,18 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0](https://github.com/PedroL3m0z/Flux-Api/compare/v1.2.1...v1.3.0) (2026-06-23)
+
+
+### Features
+
+* **ci:** add code coverage reporting with Codecov ([#52](https://github.com/PedroL3m0z/Flux-Api/issues/52)) ([6804be2](https://github.com/PedroL3m0z/Flux-Api/commit/6804be20bc64d5ab97915aabfd0c7c5792a34947))
+
+
+### Bug Fixes
+
+* **security:** hardening + zero-config boot ([#53](https://github.com/PedroL3m0z/Flux-Api/issues/53)) ([f5cf236](https://github.com/PedroL3m0z/Flux-Api/commit/f5cf236eaae10f4edb988220a05be8136d8518a2))
+
 ## [1.2.1](https://github.com/PedroL3m0z/Flux-Api/compare/v1.2.0...v1.2.1) (2026-06-19)
 
 
