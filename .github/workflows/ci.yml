@@ -71,8 +71,14 @@ jobs:
       - name: Sync database schema
         run: yarn prisma db push --schema=src/core/prisma/schema.prisma
 
-      - name: Unit tests
-        run: yarn test
+      - name: Unit tests (coverage)
+        run: yarn test:cov
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v6
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
 
       - name: E2E tests
         run: yarn test:e2e
