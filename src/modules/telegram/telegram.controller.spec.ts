@@ -8,6 +8,7 @@ import { SettingsService } from '../../core/telegram/services/settings.service';
 import type { SafeUser } from '../auth/auth.service';
 import { TelegramEventBus } from '../../core/telegram/services/telegram-events.service';
 import { TelegramController } from './telegram.controller';
+import { MessagingService } from './messaging.service';
 
 const user: SafeUser = {
   id: 'u1',

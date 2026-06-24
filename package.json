@@ -121,9 +121,25 @@
       "^(\\.{1,2}/.*)\\.js$": "$1"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "**/*.(t|j)s",
+      "!**/*.spec.ts",
+      "!**/*.module.ts",
+      "!**/dto/**",
+      "!**/entities/**",
+      "!core/prisma/generated/**",
+      "!core/telegram/engines/gramjs.engine.ts",
+      "!core/webhooks/webhook-delivery.worker.ts",
+      "!main.ts"
     ],
     "coverageDirectory": "../coverage",
+    "coverageThreshold": {
+      "global": {
+        "branches": 55,
+        "functions": 53,
+        "lines": 65,
+        "statements": 65
+      }
+    },
     "testEnvironment": "node"
   }
 }
