@@ -5,6 +5,20 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0](https://github.com/PedroL3m0z/Flux-Api/compare/v1.3.0...v1.4.0) (2026-06-24)
+
+
+### Features
+
+* **docker:** all-in-one image + automated Docker Hub release ([#64](https://github.com/PedroL3m0z/Flux-Api/issues/64)) ([4a97bc4](https://github.com/PedroL3m0z/Flux-Api/commit/4a97bc472ad0822b6b301b6ed22e36949b0312bf))
+* implement authentication module with login and registration pag… ([10b8fc1](https://github.com/PedroL3m0z/Flux-Api/commit/10b8fc1c85265cc1d86cc614acaa924521ec7e76))
+* implement authentication module with login and registration pages, router configuration, and internationalization support ([3af77da](https://github.com/PedroL3m0z/Flux-Api/commit/3af77dacd3a22e9bcca0858a3e0b43306b393a9c))
+
+
+### Bug Fixes
+
+* remove unused resetForm from login form logic ([9a0ac66](https://github.com/PedroL3m0z/Flux-Api/commit/9a0ac66a0e3cd63aa0fa71c824740d2dff07ca93))
+
 ## [1.3.0](https://github.com/PedroL3m0z/Flux-Api/compare/v1.2.1...v1.3.0) (2026-06-23)
 
 
