@@ -7,11 +7,22 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write # dispatch the release-image workflow after a release is cut
 
 jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
       - uses: googleapis/release-please-action@v5
+        id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      # A release created with the default GITHUB_TOKEN does not trigger the
+      # `release: published` event, so dispatch the image build explicitly on
+      # the new tag (which gives metadata-action the correct semver tags).
+      - name: Trigger release-image build
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run release-image.yml --ref "${{ steps.release.outputs.tag_name }}" --repo "${{ github.repository }}"
