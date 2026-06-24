@@ -55,39 +55,9 @@ Flux connects one or more Telegram accounts (over MTProto) and turns each one in
 
 The path of a message, from Telegram to your system:
 
-```
-                  ┌─────────────────────────────────────────────────────────┐
-   Telegram       │                        Flux API                          │
-  (MTProto)       │                                                          │
-      │           │   ┌──────────┐   onEvent   ┌──────────────────┐         │
-      │  updates   │   │  Engine  │ ──────────► │ TelegramSync     │         │
-      ├───────────►│   │ (GramJS) │             │ Service          │         │
-      │           │   └──────────┘             │  • persists msg  │         │
-      │           │                            │  • publishes evt │         │
-      │           │                            └────────┬─────────┘         │
-      │           │                                     │ DomainEvent       │
-      │           │                            ┌────────▼─────────┐         │
-      │           │   session.status ─────────►│ TelegramEventBus │         │
-      │           │   (TelegramManager)        │   (RxJS Subject) │         │
-      │           │                            └───┬──────────┬───┘         │
-      │           │                                │          │             │
-      │           │              ┌─────────────────▼──┐   ┌───▼───────────┐ │
-      │           │              │ SSE stream         │   │ Webhook        │ │
-      │           │              │ (/messages/stream) │   │ Dispatcher     │ │
-      │           │              └────────────────────┘   └───┬───────────┘ │
-      │           │                                           │ creates     │
-      │           │                                  ┌────────▼─────────┐   │
-      │           │                                  │ WebhookDelivery  │   │
-      │           │                                  │ (Postgres outbox)│   │
-      │           │                                  └────────┬─────────┘   │
-      │           │                                  ┌────────▼─────────┐   │
-      │           │                                  │ Delivery Worker  │   │
-      │           │                                  │ (POST + HMAC +   │───┼──► your endpoint
-      │           │                                  │  retry/backoff)  │   │
-      │           │                                  └──────────────────┘   │
-      └───────────┘                                                          │
-                  └─────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="./docs/assets/schema.png" alt="Flux API message flow: Telegram → Engine → TelegramSync → EventBus → SSE / Webhook outbox → your endpoint" width="820" />
+</p>
 
 1. **Connection** — The `TelegramManager` resolves the instance's **engine** (e.g. GramJS), connects using the session saved in Redis and, if needed, drives the QR/2FA login.
 2. **Capture** — The engine subscribes to Telegram updates and normalizes them into an engine-agnostic `NormalizedEvent`, delivered via `onEvent`.
@@ -507,9 +477,14 @@ docker compose up -d
 # API:       http://localhost:3000
 # Dashboard: http://localhost:3000/dashboard
 # Docs:      http://localhost:3000/docs
-# Postgres:  localhost:5433 (user: flux / pass: flux)
+# Postgres:  localhost:5432 (user: flux / pass: flux)
 # Redis:     localhost:6379
 ```
+
+> **Migrations run automatically.** The container entrypoint applies
+> `prisma migrate deploy` before the API starts (the all-in-one image does the
+> same). You only apply migrations by hand when running the app on the host
+> (see below).
 
 ### Run the all-in-one image (single container)
 
@@ -560,12 +535,17 @@ yarn prisma migrate dev --schema=src/core/prisma/schema.prisma
 yarn start:dev
 ```
 
-### Production build
+### Production build (on the host)
 
 ```bash
-yarn build:all      # backend + frontend
+yarn build:all                              # backend + frontend
+yarn prisma:deploy                          # apply migrations (no entrypoint here)
 node dist/main.js
 ```
+
+> Running `node dist/main.js` directly does **not** apply migrations (only the
+> Docker entrypoint does). Run `yarn prisma:deploy` first, or prefer the Docker
+> images, which migrate automatically.
 
 ---
 
@@ -619,8 +599,9 @@ flux-api/
 │   ├── app.module.ts
 │   └── main.ts                 # bootstrap, OpenAPI/Scalar, BigInt shim
 ├── client/                     # Vue 3 SPA (base /dashboard/)
+├── docker/s6-overlay/          # all-in-one service tree (s6-rc.d + scripts)
 ├── docker-compose.yml
-├── Dockerfile                  # multistage (client + backend)
+├── Dockerfile                  # 3 targets: builder, production, allinone
 ├── prisma.config.ts
 └── README.md
 ```
@@ -645,7 +626,7 @@ flux-api/
 | `JWT_EXPIRES_IN`          | Token lifetime (default `3600s`)                                     |
 | `SEED_EMAIL/USERNAME/PASSWORD` | Creates an admin on first boot when all three are set          |
 | `TELEGRAM_API_ID/HASH`    | Default GramJS api_id/api_hash (or per instance / settings)         |
-| `CORS_ORIGIN`             | Origin whitelist (default `*`)                                       |
+| `CORS_ORIGIN`             | Origin whitelist (default `*`). **In production `*` is refused at boot** — set explicit origin(s), comma-separated. |
 | `COOKIE_SECURE`           | `true` for a `Secure` cookie (behind TLS)                          |
 | `PORT`                    | HTTP port (default `3000`)                                           |
 | `NODE_ENV`                | `development` / `production`                                         |
@@ -660,26 +641,52 @@ flux-api/
 
 ## Deployment
 
-### Docker Compose (dev/staging)
+The `Dockerfile` has three targets:
+
+| Target | Contents | Use |
+| --- | --- | --- |
+| `allinone` (**default**) | API + PostgreSQL + Redis in one container (s6-overlay) | Self-hosted / single host / distribution |
+| `production` | API only (bring your own Postgres + Redis) | Scalable deployments, `docker compose`, k8s |
+| `builder` | compiles API + client | internal build stage |
+
+### All-in-one (self-hosted, one container)
+
+Pull the published image (multi-arch `amd64` + `arm64`):
 
 ```bash
-docker compose up -d
+docker run -d -p 3000:3000 -v flux_data:/data pedrooaj/flux-api          # Docker Hub
+docker run -d -p 3000:3000 -v flux_data:/data ghcr.io/pedrol3m0z/flux-api # GHCR
 ```
 
-### Standalone image (production)
+Or build it yourself (default target):
 
 ```bash
-docker build -t flux-api:latest .
+docker build -t flux-api:allinone .
+```
+
+### Docker Compose (API + Postgres + Redis as services)
+
+```bash
+docker compose up -d        # builds the `production` target
+```
+
+### API-only image (external Postgres + Redis)
+
+```bash
+docker build --target production -t flux-api:api .
 
 docker run -d \
   -e DATABASE_URL="postgresql://user:pass@host:5432/flux" \
-  -e REDIS_URL="redis://host:6379" \
-  -e JWT_SECRET="..." \
-  -e API_KEY="..." \
-  -e TELEGRAM_SESSION_SECRET="..." \
+  -e REDIS_HOST="redis-host" -e REDIS_PORT="6379" \
+  -e CORS_ORIGIN="https://your-frontend.example" \
   -p 3000:3000 \
-  flux-api:latest
+  flux-api:api
 ```
+
+> `JWT_SECRET`, `API_KEY` and `TELEGRAM_SESSION_SECRET` are auto-generated and
+> persisted under `DATA_DIR` — mount a volume there to keep them stable. Set
+> them explicitly only to pin known values. Migrations apply automatically on
+> container start.
 
 ---
 
