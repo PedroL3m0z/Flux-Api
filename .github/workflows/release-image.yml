@@ -11,6 +11,10 @@ on:
       tag:
         description: 'Image tag to publish (e.g. 1.3.0). Defaults to latest only.'
         required: false
+      platforms:
+        description: 'Target platforms. Use linux/amd64 for a fast test build.'
+        required: false
+        default: linux/amd64,linux/arm64
 
 permissions:
   contents: read
@@ -60,7 +64,9 @@ jobs:
         with:
           context: .
           target: allinone
-          platforms: linux/amd64,linux/arm64
+          # Release events build multi-arch; manual runs can override (e.g.
+          # linux/amd64 only) for a fast test build.
+          platforms: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
