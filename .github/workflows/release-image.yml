@@ -33,9 +33,6 @@ jobs:
           platform=${{ matrix.platform }}
           echo "PLATFORM_PAIR=${platform//\//-}" >> "$GITHUB_ENV"
 
-      - name: Lowercase GHCR owner
-        run: echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
-
       - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
@@ -47,13 +44,6 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@v6
@@ -61,10 +51,9 @@ jobs:
           context: .
           target: allinone
           platforms: ${{ matrix.platform }}
-          # Push content-addressable (no tag yet); the merge job adds tags.
-          outputs: |
-            type=image,name=${{ secrets.DOCKERHUB_USERNAME }}/flux-api,push-by-digest=true,name-canonical=true,push=true
-            type=image,name=ghcr.io/${{ env.OWNER_LC }}/flux-api,push-by-digest=true,name-canonical=true,push=true
+          # Push content-addressable (no tag yet) to a single registry so the
+          # exported digest is unambiguous; the merge job tags both registries.
+          outputs: type=image,name=${{ secrets.DOCKERHUB_USERNAME }}/flux-api,push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=${{ env.PLATFORM_PAIR }}
           cache-to: type=gha,mode=max,scope=${{ env.PLATFORM_PAIR }}
 
@@ -134,10 +123,12 @@ jobs:
 
       - name: Create manifest list (GHCR)
         working-directory: /tmp/digests
+        # Sources are the Hub digests; imagetools copies them cross-registry to
+        # the GHCR tags.
         run: |
           docker buildx imagetools create \
             $(jq -cr '.tags | map(select(startswith("ghcr.io"))) | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf 'ghcr.io/${{ env.OWNER_LC }}/flux-api@sha256:%s ' *)
+            $(printf '${{ secrets.DOCKERHUB_USERNAME }}/flux-api@sha256:%s ' *)
 
       - name: Summary
         run: |
