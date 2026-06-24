@@ -46,6 +46,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # API-only image; Postgres + Redis are the separate services below.
+      target: production
     container_name: flux-api
     restart: unless-stopped
     env_file:
