@@ -9,6 +9,8 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 [![NestJS](https://img.shields.io/badge/NestJS-11-e0234e.svg)](https://nestjs.com)
 [![Prisma](https://img.shields.io/badge/Prisma-7-2d3748.svg)](https://www.prisma.io)
+[![Docker Hub](https://img.shields.io/docker/v/pedrooaj/flux-api?sort=semver&label=Docker%20Hub&logo=docker)](https://hub.docker.com/r/pedrooaj/flux-api)
+[![Image size](https://img.shields.io/docker/image-size/pedrooaj/flux-api/latest?label=image)](https://hub.docker.com/r/pedrooaj/flux-api/tags)
 
 **HTTP gateway for Telegram.** Runs Telegram accounts as **instances** and exposes them through a clean REST API, a **realtime (SSE)** stream and signed outbound **webhooks**. Built on NestJS 11 + Prisma 7 (PostgreSQL) + Redis, with a Vue 3 dashboard to manage everything visually.
 
@@ -508,6 +510,47 @@ docker compose up -d
 # Postgres:  localhost:5433 (user: flux / pass: flux)
 # Redis:     localhost:6379
 ```
+
+### Run the all-in-one image (single container)
+
+For self-hosting without wiring up Postgres and Redis yourself, a published
+**all-in-one** image bundles the API + PostgreSQL + Redis in one container
+(supervised by s6-overlay). Pull from either registry:
+
+```bash
+# Docker Hub
+docker run -d -p 3000:3000 -v flux_data:/data pedrooaj/flux-api
+
+# or GitHub Container Registry
+docker run -d -p 3000:3000 -v flux_data:/data ghcr.io/pedrol3m0z/flux-api
+```
+
+```text
+# API:       http://localhost:3000
+# Dashboard: http://localhost:3000/dashboard
+# Docs:      http://localhost:3000/docs
+```
+
+Images are multi-arch (`linux/amd64` + `linux/arm64`) and tagged per release
+(`X.Y.Z`, `X.Y`, `latest`). The `/data` volume persists the database, Redis
+data and the auto-generated secrets — **keep it** across container recreations.
+
+On first boot the app generates the admin login and `API_KEY` and prints them
+to the log **once** (`docker logs <container>`): grab them immediately.
+
+Common overrides (`-e VAR=value`):
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `CORS_ORIGIN` | `http://localhost:3000` | Allowed browser origin(s), comma-separated. Set to your real frontend in production. |
+| `SEED_EMAIL` / `SEED_USERNAME` / `SEED_PASSWORD` | — | Seed a specific initial admin instead of the generated one. |
+| `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` | — | Enable the Telegram engine (instances stay disabled until set). |
+| `PORT` | `3000` | API port inside the container. |
+
+> The all-in-one image is meant for easy distribution / single-host setups, not
+> horizontal scaling — there is no service isolation and a restart cycles every
+> process. For scalable deployments use `docker compose` (above), which runs the
+> API, Postgres and Redis as separate services.
 
 ### Run locally (infra in Docker, app on host)
 
