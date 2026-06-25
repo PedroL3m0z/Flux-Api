@@ -38,6 +38,7 @@
 - [Environment variables](#environment-variables)
 - [Deployment](#deployment)
 - [Roadmap](#roadmap)
+- [Support](#support)
 
 ---
 
@@ -713,6 +714,16 @@ docker run -d \
 - **Code of Conduct**: [CODE_OF_CONDUCT.md](./.github/CODE_OF_CONDUCT.md)
 - **Security**: [SECURITY.md](./.github/SECURITY.md)
 - **Maintenance/Releases**: [docs/MAINTAINING.md](./docs/MAINTAINING.md)
+
+## Support
+
+Flux is free and open source. If it saves you time or you just want to back the work, you can support development:
+
+<a href="https://buymeacoffee.com/pedroantonl" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="48" width="174" /></a>
+
+You can also help for free by starring the repo ⭐ or [sponsoring on GitHub](https://github.com/sponsors/PedroL3m0z).
+
+---
 
 ## License
 
