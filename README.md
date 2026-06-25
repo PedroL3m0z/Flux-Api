@@ -11,6 +11,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-7-2d3748.svg)](https://www.prisma.io)
 [![Docker Hub](https://img.shields.io/docker/v/pedrooaj/flux-api?sort=semver&label=Docker%20Hub&logo=docker)](https://hub.docker.com/r/pedrooaj/flux-api)
 [![Image size](https://img.shields.io/docker/image-size/pedrooaj/flux-api/latest?label=image)](https://hub.docker.com/r/pedrooaj/flux-api/tags)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/pedroantonl)
 
 **HTTP gateway for Telegram.** Runs Telegram accounts as **instances** and exposes them through a clean REST API, a **realtime (SSE)** stream and signed outbound **webhooks**. Built on NestJS 11 + Prisma 7 (PostgreSQL) + Redis, with a Vue 3 dashboard to manage everything visually.
 
