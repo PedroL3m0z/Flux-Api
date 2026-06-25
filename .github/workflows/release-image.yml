@@ -1,16 +1,22 @@
 name: release-image
 
-# Builds the all-in-one image (API + PostgreSQL + Redis) and publishes it to
-# Docker Hub and GHCR on every GitHub Release. Each architecture is built on a
-# native runner (no QEMU): amd64 on ubuntu-latest, arm64 on ubuntu-24.04-arm.
-# A merge job then assembles the multi-arch manifest list for both registries.
+# Builds the Docker images and publishes them to Docker Hub and GHCR on every
+# GitHub Release. Two targets are published to the same `flux-api` repo under
+# distinct tags:
+#
+#   - allinone   (default): latest, X.Y.Z, X.Y          -> single-container appliance
+#   - production           : production, X.Y.Z-production, X.Y-production
+#
+# Each architecture is built on a native runner (no QEMU): amd64 on
+# ubuntu-latest, arm64 on ubuntu-24.04-arm. A merge job then assembles the
+# multi-arch manifest list per target for both registries.
 on:
   release:
     types: [published]
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Extra tag to publish (e.g. ci-test). Optional.'
+        description: 'Extra tag for the all-in-one image (e.g. ci-test). Optional.'
         required: false
 
 permissions:
@@ -25,6 +31,9 @@ jobs:
         platform:
           - linux/amd64
           - linux/arm64
+        target:
+          - allinone
+          - production
     # Native runner per arch — arm64 is a real ARM machine, no emulation.
     runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     steps:
@@ -49,13 +58,13 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          target: allinone
+          target: ${{ matrix.target }}
           platforms: ${{ matrix.platform }}
           # Push content-addressable (no tag yet) to a single registry so the
           # exported digest is unambiguous; the merge job tags both registries.
           outputs: type=image,name=${{ secrets.DOCKERHUB_USERNAME }}/flux-api,push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=${{ env.PLATFORM_PAIR }}
-          cache-to: type=gha,mode=max,scope=${{ env.PLATFORM_PAIR }}
+          cache-from: type=gha,scope=${{ env.PLATFORM_PAIR }}-${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ env.PLATFORM_PAIR }}-${{ matrix.target }}
 
       - name: Export digest
         run: |
@@ -66,7 +75,7 @@ jobs:
       - name: Upload digest
         uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ env.PLATFORM_PAIR }}
+          name: digests-${{ matrix.target }}-${{ env.PLATFORM_PAIR }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -74,6 +83,12 @@ jobs:
   merge:
     needs: build
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - allinone
+          - production
     steps:
       - name: Lowercase GHCR owner
         run: echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
@@ -82,7 +97,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: /tmp/digests
-          pattern: digests-*
+          pattern: digests-${{ matrix.target }}-*
           merge-multiple: true
 
       - name: Set up Docker Buildx
@@ -108,11 +123,16 @@ jobs:
           images: |
             ${{ secrets.DOCKERHUB_USERNAME }}/flux-api
             ghcr.io/${{ env.OWNER_LC }}/flux-api
+          # allinone owns the unsuffixed tags (latest / X.Y.Z); production gets
+          # the same versions with a -production suffix plus a rolling `production`.
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
-            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' }}
+            type=semver,pattern={{version}},enable=${{ matrix.target == 'allinone' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ matrix.target == 'allinone' }}
+            type=raw,value=latest,enable=${{ matrix.target == 'allinone' }}
+            type=semver,pattern={{version}}-production,enable=${{ matrix.target == 'production' }}
+            type=semver,pattern={{major}}.{{minor}}-production,enable=${{ matrix.target == 'production' }}
+            type=raw,value=production,enable=${{ matrix.target == 'production' }}
+            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' && matrix.target == 'allinone' }}
 
       - name: Create manifest list (Docker Hub)
         working-directory: /tmp/digests
@@ -132,7 +152,7 @@ jobs:
 
       - name: Summary
         run: |
-          echo "### Published images" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Published images (${{ matrix.target }})" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           echo "${{ steps.meta.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
