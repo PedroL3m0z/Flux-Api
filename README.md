@@ -474,25 +474,23 @@ yarn prisma:generate
 
 ### Run with Docker (recommended)
 
+`docker-compose.yml` runs the single Flux image, which bundles the API,
+PostgreSQL and Redis in one container:
+
 ```bash
 docker compose up -d
 # API:       http://localhost:3000
 # Dashboard: http://localhost:3000/dashboard
 # Docs:      http://localhost:3000/docs
-# Postgres:  localhost:5432 (user: flux / pass: flux)
-# Redis:     localhost:6379
 ```
 
-> **Migrations run automatically.** The container entrypoint applies
-> `prisma migrate deploy` before the API starts (the all-in-one image does the
-> same). You only apply migrations by hand when running the app on the host
-> (see below).
+> **Migrations run automatically.** The image applies `prisma migrate deploy`
+> before the API starts. You only apply migrations by hand when running the app
+> on the host (see below).
 
-### Run the all-in-one image (single container)
+### Run the image directly (`docker run`)
 
-For self-hosting without wiring up Postgres and Redis yourself, a published
-**all-in-one** image bundles the API + PostgreSQL + Redis in one container
-(supervised by s6-overlay). Pull from either registry:
+The same published image, pulled from either registry:
 
 ```bash
 # Docker Hub
@@ -502,13 +500,7 @@ docker run -d -p 3000:3000 -v flux_data:/data pedrooaj/flux-api
 docker run -d -p 3000:3000 -v flux_data:/data ghcr.io/pedrol3m0z/flux-api
 ```
 
-```text
-# API:       http://localhost:3000
-# Dashboard: http://localhost:3000/dashboard
-# Docs:      http://localhost:3000/docs
-```
-
-Images are multi-arch (`linux/amd64` + `linux/arm64`) and tagged per release
+The image is multi-arch (`linux/amd64` + `linux/arm64`) and tagged per release
 (`X.Y.Z`, `X.Y`, `latest`). The `/data` volume persists the database, Redis
 data and the auto-generated secrets — **keep it** across container recreations.
 
@@ -524,15 +516,17 @@ Common overrides (`-e VAR=value`):
 | `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` | — | Enable the Telegram engine (instances stay disabled until set). |
 | `PORT` | `3000` | API port inside the container. |
 
-> The all-in-one image is meant for easy distribution / single-host setups, not
-> horizontal scaling — there is no service isolation and a restart cycles every
-> process. For scalable deployments use `docker compose` (above), which runs the
-> API, Postgres and Redis as separate services.
+> One container, no service isolation: a restart cycles every process. For a
+> single host / self-hosting this is exactly what you want; mount `/data` and
+> you are done.
 
 ### Run locally (infra in Docker, app on host)
 
+For development you usually run the app on the host against Postgres + Redis in
+Docker (`docker-compose.dev.yml` ships just those two):
+
 ```bash
-docker compose up -d postgres redis
+docker compose -f docker-compose.dev.yml up -d
 yarn prisma migrate dev --schema=src/core/prisma/schema.prisma
 yarn start:dev
 ```
@@ -601,9 +595,10 @@ flux-api/
 │   ├── app.module.ts
 │   └── main.ts                 # bootstrap, OpenAPI/Scalar, BigInt shim
 ├── client/                     # Vue 3 SPA (base /dashboard/)
-├── docker/s6-overlay/          # all-in-one service tree (s6-rc.d + scripts)
-├── docker-compose.yml
-├── Dockerfile                  # 3 targets: builder, production, allinone
+├── docker/s6-overlay/          # image service tree (s6-rc.d + scripts)
+├── docker-compose.yml          # runs the single image
+├── docker-compose.dev.yml      # dev infra only (Postgres + Redis)
+├── Dockerfile                  # 2 stages: builder, runtime
 ├── prisma.config.ts
 └── README.md
 ```
@@ -643,63 +638,36 @@ flux-api/
 
 ## Deployment
 
-The `Dockerfile` has three targets:
+Flux ships as a **single multi-arch image** (`linux/amd64` + `linux/arm64`)
+that bundles the API, PostgreSQL and Redis in one container (supervised by
+s6-overlay). It is published to Docker Hub and GHCR on every release, tagged
+`X.Y.Z`, `X.Y` and `latest`.
 
-| Target | Contents | Use |
-| --- | --- | --- |
-| `allinone` (**default**) | API + PostgreSQL + Redis in one container (s6-overlay) | Self-hosted / single host / distribution |
-| `production` | API only (bring your own Postgres + Redis) | Scalable deployments, `docker compose`, k8s |
-| `builder` | compiles API + client | internal build stage |
+### Docker Compose
 
-### All-in-one (self-hosted, one container)
+```bash
+docker compose up -d
+```
 
-Pull the published image (multi-arch `amd64` + `arm64`):
+`docker-compose.yml` runs the image with a `/data` volume — that is the whole
+stack. (For local development against host-run code, `docker-compose.dev.yml`
+brings up just Postgres + Redis.)
+
+### docker run
 
 ```bash
 docker run -d -p 3000:3000 -v flux_data:/data pedrooaj/flux-api          # Docker Hub
 docker run -d -p 3000:3000 -v flux_data:/data ghcr.io/pedrol3m0z/flux-api # GHCR
 ```
 
-Or build it yourself (default target):
+### Build it yourself
 
 ```bash
-docker build -t flux-api:allinone .
-```
-
-### Docker Compose (API + Postgres + Redis as services)
-
-```bash
-docker compose up -d        # pulls pedrooaj/flux-api:production + starts the stack
-```
-
-> To build the API from your local working tree instead of the published image,
-> swap `image` for the commented `build` block in `docker-compose.yml`, then
-> `docker compose up -d --build`.
-
-### API-only image (external Postgres + Redis)
-
-The `production` target is published to the same `flux-api` repo under
-`-production` tags (multi-arch `amd64` + `arm64`): `production` (rolling),
-`X.Y.Z-production` and `X.Y-production`.
-
-```bash
-docker run -d \
-  -e DATABASE_URL="postgresql://user:pass@host:5432/flux" \
-  -e REDIS_HOST="redis-host" -e REDIS_PORT="6379" \
-  -e CORS_ORIGIN="https://your-frontend.example" \
-  -p 3000:3000 -v flux_data:/data \
-  pedrooaj/flux-api:production          # Docker Hub
-  # ghcr.io/pedrol3m0z/flux-api:production  # GHCR
-```
-
-Or build it yourself:
-
-```bash
-docker build --target production -t flux-api:api .
+docker build -t flux-api .
 ```
 
 > `JWT_SECRET`, `API_KEY` and `TELEGRAM_SESSION_SECRET` are auto-generated and
-> persisted under `DATA_DIR` — mount a volume there to keep them stable. Set
+> persisted under `DATA_DIR` — keep the `/data` volume so they stay stable. Set
 > them explicitly only to pin known values. Migrations apply automatically on
 > container start.
 

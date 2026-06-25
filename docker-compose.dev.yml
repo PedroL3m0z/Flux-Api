@@ -1,0 +1,44 @@
+services:
+  # Local development infra: Postgres + Redis only, so you can run the app on
+  # the host (`yarn start:dev`) against them. The full stack ships as the single
+  # Flux image in docker-compose.yml.
+  postgres:
+    image: postgres:17-alpine
+    container_name: flux-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-flux}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flux}
+      POSTGRES_DB: ${POSTGRES_DB:-flux}
+    ports:
+      - '${POSTGRES_HOST_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-flux} -d ${POSTGRES_DB:-flux}',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: flux-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '${REDIS_HOST_PORT:-6379}:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
