@@ -11,7 +11,7 @@ const { t } = useI18n()
 const logoUrl = `${import.meta.env.BASE_URL}logo.png`
 
 function goHome() {
-  void router.push(auth.user ? { name: 'overview' } : { name: 'home' })
+  void router.push(auth.user ? { name: 'overview' } : { name: 'login' })
 }
 </script>
 

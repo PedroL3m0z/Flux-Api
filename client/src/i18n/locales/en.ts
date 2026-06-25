@@ -9,90 +9,14 @@ export default {
     edit: 'Edit',
     madeBy: 'by',
   },
-  landing: {
-    nav: {
-      benefits: 'Benefits',
-      workflow: 'How it works',
-      demo: 'Demo',
-    },
-    ctaLogin: 'Sign in',
-    ctaDashboard: 'Open dashboard',
-    ctaDemo: 'View demo',
-    hero: {
-      badge: 'Automation for groups and channels',
-      title: 'Flux for Telegram groups',
-      subtitle:
-        'Create your group, connect it to Flux, and send promotions, alerts, and campaigns with more control.',
-    },
-    benefits: {
-      eyebrow: 'Sell with less effort',
-      title: 'Everything you need to keep the group active.',
-      promosTitle: 'Promotions ready to send',
-      promosBody:
-        'Send offers, coupons, and important messages to the group at the right time.',
-      groupsTitle: 'Centralized communication',
-      groupsBody:
-        'Follow chats and messages from a simple dashboard without losing context.',
-      controlTitle: 'Control and security',
-      controlBody:
-        'Use protected login, API key access, and roles to keep access organized.',
-    },
-    workflow: {
-      eyebrow: 'Simple flow',
-      title: 'From group to campaign in a few steps.',
-      subtitle:
-        'The landing sells the idea; the dashboard keeps managing instances, messages, and webhooks.',
-      step: 'Step {n}',
-      connectTitle: 'Connect your account',
-      connectBody:
-        'Use QR code or phone login to connect a Telegram account to the dashboard.',
-      createTitle: 'Choose the group',
-      createBody:
-        'Create or select the group/channel where your promotions will be sent.',
-      sendTitle: 'Send campaigns',
-      sendBody:
-        'Send messages, track events, and integrate with other systems when needed.',
-    },
-    demo: {
-      eyebrow: 'Product preview',
-      title: 'A clear view of what is happening.',
-      subtitle:
-        'The dashboard shows campaigns, messages, and integrations visually so operations stay simple.',
-    },
-    mockup: {
-      badge: 'Active campaign',
-      title: "Today's promotion",
-      subtitle: 'Message ready to send to the offers group.',
-      promoTitle: 'Scheduled offer',
-      promoBody: '20% coupon sent at 6 PM to the main group.',
-      webhookTitle: 'Integration enabled',
-      webhookBody: 'Events can notify other systems automatically.',
-      approved: 'Message reviewed and ready to send',
-      scheduled: 'Next send today at 6 PM',
-      audience: 'Group with 1,284 members watching',
-      groupName: 'Offers Group',
-      members: '1,284 members',
-      messageTitle: 'New promotion',
-      messageBody: 'Special offer for a limited time.',
-      botReply: 'Flux Bot',
-      cta: 'Send now',
-    },
-  },
   login: {
-    badge: 'Dashboard access',
-    title: 'Sign in to Flux',
-    subtitle: 'Access campaigns, groups, messages, and integrations in one place.',
-    backHome: 'Back to home',
+    title: 'Sign in',
+    subtitle: 'Flux API Gateway',
     userOrEmail: 'Username or email',
-    userPlaceholder: 'your_username',
     password: 'Password',
-    passwordHint: 'min. 8 chars',
     submit: 'Sign in',
     submitting: 'Signing in...',
     failed: 'Login failed',
-    benefitOne: 'View and operate your Telegram instances.',
-    benefitTwo: 'Protected by session, password, and API key.',
-    previewLabel: 'Experience preview',
   },
   unlock: {
     title: 'API key required',
