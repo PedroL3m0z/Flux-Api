@@ -674,15 +674,24 @@ docker compose up -d        # builds the `production` target
 
 ### API-only image (external Postgres + Redis)
 
-```bash
-docker build --target production -t flux-api:api .
+The `production` target is published to the same `flux-api` repo under
+`-production` tags (multi-arch `amd64` + `arm64`): `production` (rolling),
+`X.Y.Z-production` and `X.Y-production`.
 
+```bash
 docker run -d \
   -e DATABASE_URL="postgresql://user:pass@host:5432/flux" \
   -e REDIS_HOST="redis-host" -e REDIS_PORT="6379" \
   -e CORS_ORIGIN="https://your-frontend.example" \
-  -p 3000:3000 \
-  flux-api:api
+  -p 3000:3000 -v flux_data:/data \
+  pedrooaj/flux-api:production          # Docker Hub
+  # ghcr.io/pedrol3m0z/flux-api:production  # GHCR
+```
+
+Or build it yourself:
+
+```bash
+docker build --target production -t flux-api:api .
 ```
 
 > `JWT_SECRET`, `API_KEY` and `TELEGRAM_SESSION_SECRET` are auto-generated and
