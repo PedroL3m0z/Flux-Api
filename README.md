@@ -669,8 +669,12 @@ docker build -t flux-api:allinone .
 ### Docker Compose (API + Postgres + Redis as services)
 
 ```bash
-docker compose up -d        # builds the `production` target
+docker compose up -d        # pulls pedrooaj/flux-api:production + starts the stack
 ```
+
+> To build the API from your local working tree instead of the published image,
+> swap `image` for the commented `build` block in `docker-compose.yml`, then
+> `docker compose up -d --build`.
 
 ### API-only image (external Postgres + Redis)
 
