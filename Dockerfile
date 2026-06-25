@@ -44,7 +44,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 # tini: real PID 1 so SIGTERM is forwarded for a clean, fast shutdown.
-RUN apk add --no-cache tini
+# su-exec: drop from root to `node` in the entrypoint after fixing volume perms.
+RUN apk add --no-cache tini su-exec
 
 # node:26-alpine ships neither yarn nor corepack; install yarn classic
 RUN npm install -g yarn
@@ -77,8 +78,10 @@ RUN chmod +x docker-entrypoint.sh
 # fresh named-volume mount inherits writable permissions for the non-root user.
 RUN mkdir -p /data && chown node:node /data
 
-# Drop root: run the app as the unprivileged `node` user shipped by the image.
-USER node
+# NOTE: the container starts as root so the entrypoint can chown DATA_DIR when a
+# host mounts a root-owned volume over it (build-time ownership is masked by the
+# mount). docker-entrypoint.sh immediately drops to the unprivileged `node` user
+# via su-exec, so the app itself never runs as root.
 
 EXPOSE 3000
 
