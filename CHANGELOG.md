@@ -5,6 +5,14 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1](https://github.com/PedroL3m0z/Flux-Api/compare/v1.4.0...v1.4.1) (2026-06-25)
+
+
+### Bug Fixes
+
+* **deps:** patch Dependabot DoS alerts via resolutions ([#71](https://github.com/PedroL3m0z/Flux-Api/issues/71)) ([65d0008](https://github.com/PedroL3m0z/Flux-Api/commit/65d000860112ea6bf7318bad6ec89681e8ad56af))
+* **docker:** make DATA_DIR writable when host mounts a root-owned volume ([#73](https://github.com/PedroL3m0z/Flux-Api/issues/73)) ([a763db3](https://github.com/PedroL3m0z/Flux-Api/commit/a763db3f1c2bc86282884b42d0b27fe189d0234e))
+
 ## [1.4.0](https://github.com/PedroL3m0z/Flux-Api/compare/v1.3.0...v1.4.0) (2026-06-24)
 
 
