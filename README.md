@@ -500,7 +500,7 @@ docker run -d -p 3000:3000 -v flux_data:/data pedrooaj/flux-api
 docker run -d -p 3000:3000 -v flux_data:/data ghcr.io/pedrol3m0z/flux-api
 ```
 
-The image is multi-arch (`linux/amd64` + `linux/arm64`) and tagged per release
+The image is built for `linux/amd64` and tagged per release
 (`X.Y.Z`, `X.Y`, `latest`). The `/data` volume persists the database, Redis
 data and the auto-generated secrets — **keep it** across container recreations.
 
@@ -638,10 +638,10 @@ flux-api/
 
 ## Deployment
 
-Flux ships as a **single multi-arch image** (`linux/amd64` + `linux/arm64`)
-that bundles the API, PostgreSQL and Redis in one container (supervised by
-s6-overlay). It is published to Docker Hub and GHCR on every release, tagged
-`X.Y.Z`, `X.Y` and `latest`.
+Flux ships as a **single `linux/amd64` image** that bundles the API,
+PostgreSQL and Redis in one container (supervised by s6-overlay). It is
+published to Docker Hub and GHCR on every release, tagged `X.Y.Z`, `X.Y` and
+`latest`.
 
 ### Docker Compose
 
