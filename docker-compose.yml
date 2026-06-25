@@ -43,11 +43,15 @@ services:
       - flux
 
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      # API-only image; Postgres + Redis are the separate services below.
-      target: production
+    # Distribution default: pull the published API-only image (Postgres + Redis
+    # are the separate services below). For local development against your
+    # working tree, comment `image` and uncomment the `build` block to compile
+    # the production target from source instead.
+    image: pedrooaj/flux-api:production
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    #   target: production
     container_name: flux-api
     restart: unless-stopped
     env_file:
