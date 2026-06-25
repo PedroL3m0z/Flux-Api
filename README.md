@@ -11,6 +11,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-7-2d3748.svg)](https://www.prisma.io)
 [![Docker Hub](https://img.shields.io/docker/v/pedrooaj/flux-api?sort=semver&label=Docker%20Hub&logo=docker)](https://hub.docker.com/r/pedrooaj/flux-api)
 [![Image size](https://img.shields.io/docker/image-size/pedrooaj/flux-api/latest?label=image)](https://hub.docker.com/r/pedrooaj/flux-api/tags)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/pedroantonl)
 
 **HTTP gateway for Telegram.** Runs Telegram accounts as **instances** and exposes them through a clean REST API, a **realtime (SSE)** stream and signed outbound **webhooks**. Built on NestJS 11 + Prisma 7 (PostgreSQL) + Redis, with a Vue 3 dashboard to manage everything visually.
 
@@ -37,6 +38,7 @@
 - [Environment variables](#environment-variables)
 - [Deployment](#deployment)
 - [Roadmap](#roadmap)
+- [Support](#support)
 
 ---
 
@@ -712,6 +714,16 @@ docker run -d \
 - **Code of Conduct**: [CODE_OF_CONDUCT.md](./.github/CODE_OF_CONDUCT.md)
 - **Security**: [SECURITY.md](./.github/SECURITY.md)
 - **Maintenance/Releases**: [docs/MAINTAINING.md](./docs/MAINTAINING.md)
+
+## Support
+
+Flux is free and open source. If it saves you time or you just want to back the work, you can support development:
+
+<a href="https://buymeacoffee.com/pedroantonl" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="48" width="174" /></a>
+
+You can also help for free by starring the repo ⭐ or [sponsoring on GitHub](https://github.com/sponsors/PedroL3m0z).
+
+---
 
 ## License
 
