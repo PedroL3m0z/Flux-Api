@@ -5,6 +5,13 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.2](https://github.com/PedroL3m0z/Flux-Api/compare/v1.4.1...v1.4.2) (2026-06-25)
+
+
+### Reverts
+
+* **client:** remove SaaS landing page and marketing login redesign ([#76](https://github.com/PedroL3m0z/Flux-Api/issues/76)) ([f8d7add](https://github.com/PedroL3m0z/Flux-Api/commit/f8d7adda9ca674505739506cbed0db123176a569))
+
 ## [1.4.1](https://github.com/PedroL3m0z/Flux-Api/compare/v1.4.0...v1.4.1) (2026-06-25)
 
 
