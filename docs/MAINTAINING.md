@@ -66,7 +66,19 @@ Releases are automated by **release-please**
 Only `feat:` and `fix:` commits trigger a release. Post-1.0 bumping follows
 semver via release-please defaults (`feat:` → minor, `fix:` → patch, breaking
 → major). Pre-1.0 behaviour was configured in `release-please-config.json`
-(`bump-minor-pre-major`).
+(`bump-minor-pre-major`). To force a release from non-bumping commits (e.g. a
+`refactor:`/`ci:` change), add a `Release-As: X.Y.Z` trailer in a commit on
+`main` — keep it as the **last** line so it survives the squash.
+
+### Docker image publish
+
+Cutting a release also ships the image. `release-please.yml` dispatches
+`release-image.yml` on the new tag (a release created with `GITHUB_TOKEN` does
+not fire `release: published`, so the dispatch is explicit). That workflow
+builds the single `linux/amd64` image (`target: runtime`, attestations off) and
+pushes `X.Y.Z`, `X.Y` and `latest` to **both** Docker Hub (`pedrooaj/flux-api`)
+and GHCR (`ghcr.io/pedrol3m0z/flux-api`). No multi-arch and no `-production`
+variant — one image, one manifest per tag.
 
 ### Merging the release PR — the GITHUB_TOKEN caveat
 
@@ -113,23 +125,18 @@ merge it normally (`gh pr merge <release-PR#> --squash`).
 
 ---
 
-## 3. Making the repository public
+## 3. Repository visibility
 
-The repo is currently **private**. Going public is effectively irreversible
-(the code gets cached, indexed, and may be forked). Before flipping it:
+The repo is **public**. Going public was effectively irreversible (the code is
+cached, indexed, and may be forked), so keep the hygiene that mattered before
+the flip:
 
 - [ ] No secrets in the working tree or git history (`.env` is gitignored).
 - [ ] `LICENSE`, `README.md`, `SECURITY.md` are current.
 - [ ] CI is green on `main`.
 
-Then:
-
-```bash
-gh repo edit PedroL3m0z/Flux-Api --visibility public --accept-visibility-change-consequences
-```
-
 > On the GitHub Free plan, branch protection rules keep working on public
-> repos. Double-check protection is still active afterwards:
+> repos. Re-check protection any time:
 > `gh api repos/PedroL3m0z/Flux-Api/branches/main/protection`
 
 ---

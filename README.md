@@ -466,7 +466,7 @@ yarn prisma:generate
 ```
 
 > **Minimal configuration (zero-config).** With no variables defined, the app
-> derives `DATABASE_URL` from the compose Postgres and **generates strong
+> derives `DATABASE_URL` from the `docker-compose.dev.yml` Postgres and **generates strong
 > secrets** (`JWT_SECRET`, `API_KEY`, `TELEGRAM_SESSION_SECRET`) on first boot,
 > saving them to `./data/secrets.json` (`DATA_DIR`). The generated `API_KEY` is
 > printed to the log **only once** — keep it. Set any variable in `.env` to
