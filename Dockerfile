@@ -60,21 +60,13 @@ RUN apk add --no-cache postgresql17 postgresql17-client redis su-exec xz
 
 RUN npm install -g yarn
 
-# --- s6-overlay: real PID 1 that supervises the three processes ---
+# --- s6-overlay: real PID 1 that supervises the three processes (amd64 only) ---
 ARG S6_OVERLAY_VERSION=3.2.0.2
-ARG TARGETARCH=amd64
 ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz /tmp/s6-noarch.tar.xz
-RUN tar -C / -Jxpf /tmp/s6-noarch.tar.xz
-RUN set -e; \
-    case "$TARGETARCH" in \
-      amd64) S6_ARCH=x86_64 ;; \
-      arm64) S6_ARCH=aarch64 ;; \
-      arm)   S6_ARCH=armhf ;; \
-      *)     S6_ARCH=x86_64 ;; \
-    esac; \
-    wget -qO /tmp/s6-arch.tar.xz "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_ARCH}.tar.xz"; \
-    tar -C / -Jxpf /tmp/s6-arch.tar.xz; \
-    rm -f /tmp/s6-*.tar.xz
+ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-x86_64.tar.xz /tmp/s6-x86_64.tar.xz
+RUN tar -C / -Jxpf /tmp/s6-noarch.tar.xz \
+  && tar -C / -Jxpf /tmp/s6-x86_64.tar.xz \
+  && rm -f /tmp/s6-*.tar.xz
 
 # --- Production node deps (argon2 toolchain installed then dropped) ---
 COPY package.json yarn.lock ./
