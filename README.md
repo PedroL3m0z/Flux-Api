@@ -682,7 +682,6 @@ docker build -t flux-api .
 - [ ] Telegraf engine (Bot API)
 - [ ] Group participants (N↔N)
 - [ ] Search across chats/messages
-- [ ] OAuth2 authentication (GitHub, Google)
 
 ---
 
