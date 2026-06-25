@@ -1,13 +1,10 @@
-# Multi-target image.
+# The Flux Docker image.
 #
-#   docker build -t flux-api .                      # default -> all-in-one
-#   docker build --target allinone -t flux-api .    # all-in-one (explicit)
-#   docker build --target production -t flux-api .  # API only (compose/k8s)
+#   docker build -t flux-api .
 #
-# - production : just the NestJS API (Postgres + Redis run as separate services,
-#                see docker-compose.yml). Use this for scalable deployments.
-# - allinone   : API + PostgreSQL + Redis in one container, supervised by
-#                s6-overlay. For self-hosted distribution / easy download.
+# A single self-contained image: the API, PostgreSQL and Redis run together in
+# one container, supervised by s6-overlay. Bring nothing else — just mount a
+# volume at /data to persist the database and generated secrets.
 
 # ---- Build stage ----
 FROM node:26-alpine AS builder
@@ -36,72 +33,16 @@ RUN yarn build
 # Build the Vue client (served by the backend under /dashboard).
 RUN yarn build:client
 
-# ---- Production stage (API only) ----
-FROM node:26-alpine AS production
+# ---- Runtime image (API + PostgreSQL + Redis, supervised by s6-overlay) ----
+# Everything talks over loopback inside the single container; a restart cycles
+# every process. s6-overlay runs as PID 1 (root) and drops privileges per
+# service via su-exec.
+FROM node:26-alpine AS runtime
 
 WORKDIR /app
 
-ENV NODE_ENV=production
-
-# tini: real PID 1 so SIGTERM is forwarded for a clean, fast shutdown.
-# su-exec: drop from root to `node` in the entrypoint after fixing volume perms.
-RUN apk add --no-cache tini su-exec
-
-# node:26-alpine ships neither yarn nor corepack; install yarn classic
-RUN npm install -g yarn
-
-COPY package.json yarn.lock ./
-COPY client/package.json ./client/
-# argon2 is a native module: the build toolchain is needed only to compile it
-# during install. Install it as a virtual package and drop it afterwards so the
-# compiler (~150 MB) never lands in the final image.
-RUN apk add --no-cache --virtual .build-deps python3 make g++ \
-  && yarn install --frozen-lockfile --production \
-  && yarn cache clean \
-  && apk del .build-deps
-
-# Compiled app (includes the generated Prisma client under dist/prisma/generated).
-COPY --from=builder --chown=node:node /app/dist ./dist
-# Built Vue client served at /dashboard via @nestjs/serve-static.
-COPY --from=builder --chown=node:node /app/client/dist ./client/dist
-# Schema + migrations + prisma config for `prisma migrate deploy` at startup.
-COPY --from=builder --chown=node:node /app/src/core/prisma ./src/core/prisma
-COPY --from=builder --chown=node:node /app/prisma.config.ts ./prisma.config.ts
-# prisma.config.ts imports the zero-config DATABASE_URL derivation from here.
-COPY --from=builder --chown=node:node /app/src/config ./src/config
-
-# Entrypoint runs migrations, then starts the app.
-COPY --chown=node:node docker-entrypoint.sh ./
-RUN chmod +x docker-entrypoint.sh
-
-# Persisted secrets / data dir (DATA_DIR=/data), owned by the runtime user so a
-# fresh named-volume mount inherits writable permissions for the non-root user.
-RUN mkdir -p /data && chown node:node /data
-
-# NOTE: the container starts as root so the entrypoint can chown DATA_DIR when a
-# host mounts a root-owned volume over it (build-time ownership is masked by the
-# mount). docker-entrypoint.sh immediately drops to the unprivileged `node` user
-# via su-exec, so the app itself never runs as root.
-
-EXPOSE 3000
-
-# tini reaps zombies and forwards signals to the entrypoint shell.
-ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["./docker-entrypoint.sh"]
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:3000/health || exit 1
-
-# ---- All-in-one stage (API + PostgreSQL + Redis, default target) ----
-# Single-container appliance for self-hosted distribution. NOT for scalable
-# production — no service isolation, a restart cycles every process. For scale
-# use --target production + docker-compose.yml.
-FROM node:26-alpine AS allinone
-
-WORKDIR /app
-
-# Everything talks over loopback inside the single container. JWT_SECRET/API_KEY
-# are auto-generated and persisted under DATA_DIR on first boot (zero-config).
+# JWT_SECRET/API_KEY are auto-generated and persisted under DATA_DIR on first
+# boot (zero-config).
 ENV NODE_ENV=production \
     PORT=3000 \
     PGDATA=/data/postgres \

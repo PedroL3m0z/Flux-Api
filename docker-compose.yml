@@ -1,97 +1,22 @@
 services:
-  postgres:
-    image: postgres:17-alpine
-    container_name: flux-postgres
+  flux:
+    # The Flux Docker image bundles the API, PostgreSQL and Redis in one
+    # container. Just mount a volume at /data to persist the database and the
+    # auto-generated secrets across restarts.
+    image: pedrooaj/flux-api:latest
+    container_name: flux
     restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-flux}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flux}
-      POSTGRES_DB: ${POSTGRES_DB:-flux}
     ports:
-      # host port configurable to avoid clashes with other local postgres
-      - '${POSTGRES_HOST_PORT:-5432}:5432'
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test:
-        [
-          'CMD-SHELL',
-          'pg_isready -U ${POSTGRES_USER:-flux} -d ${POSTGRES_DB:-flux}',
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - flux
-
-  redis:
-    image: redis:7-alpine
-    container_name: flux-redis
-    restart: unless-stopped
-    command: ['redis-server', '--appendonly', 'yes']
-    ports:
-      # host port configurable to avoid clashes with other local redis
-      - '${REDIS_HOST_PORT:-6379}:6379'
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - flux
-
-  api:
-    # Distribution default: pull the published API-only image (Postgres + Redis
-    # are the separate services below). For local development against your
-    # working tree, comment `image` and uncomment the `build` block to compile
-    # the production target from source instead.
-    image: pedrooaj/flux-api:production
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
-    #   target: production
-    container_name: flux-api
-    restart: unless-stopped
-    env_file:
-      - .env
+      - '3000:3000'
     environment:
-      # Run in production mode (overrides any NODE_ENV from .env).
-      NODE_ENV: production
-      # Explicit CORS origin: production refuses to boot with the "*" wildcard.
       # The dashboard is same-origin; set your real frontend origin(s) here.
-      CORS_ORIGIN: http://localhost:3000
-      # Override hosts so the app reaches the service containers, not localhost
-      DATABASE_URL: postgresql://${POSTGRES_USER:-flux}:${POSTGRES_PASSWORD:-flux}@postgres:5432/${POSTGRES_DB:-flux}?schema=public
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      # Where auto-generated secrets are persisted (mounted volume below) so they
-      # stay stable across container recreations. Without this, JWT/API key would
-      # rotate on every recreate and invalidate sessions.
-      DATA_DIR: /data
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       # Optional: seed an initial user on first boot (set these in .env).
-      # The x-api-key is the API_KEY from .env (already passed via env_file).
       SEED_EMAIL: ${SEED_EMAIL:-}
       SEED_USERNAME: ${SEED_USERNAME:-}
       SEED_PASSWORD: ${SEED_PASSWORD:-}
-    ports:
-      - '3000:3000'
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     volumes:
       - flux_data:/data
-    networks:
-      - flux
 
 volumes:
-  postgres_data:
-  redis_data:
   flux_data:
-
-networks:
-  flux:
-    driver: bridge
