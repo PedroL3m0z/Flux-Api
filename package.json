@@ -1,6 +1,6 @@
 {
   "name": "flux-api",
-  "version": "1.4.4",
+  "version": "1.5.0",
   "description": "HTTP gateway for Telegram built with NestJS 11, Prisma 7 (PostgreSQL) and Redis.",
   "author": "Pedro Lemos",
   "license": "Apache-2.0",
