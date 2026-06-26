@@ -1,5 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
-import { assertSafeWebhookUrl, isPrivateIp } from './webhook-url';
+import {
+  assertSafeWebhookUrl,
+  isAlwaysBlockedIp,
+  isPrivateIp,
+} from './webhook-url';
 
 describe('isPrivateIp', () => {
   it.each([
@@ -72,5 +76,40 @@ describe('assertSafeWebhookUrl', () => {
     expect(() => assertSafeWebhookUrl('not a url')).toThrow(
       BadRequestException,
     );
+  });
+});
+
+describe('isAlwaysBlockedIp', () => {
+  it.each(['169.254.169.254', '169.254.0.1', 'fe80::1', '::ffff:169.254.0.1'])(
+    'flags %s (link-local / metadata) even with allowInternal',
+    (ip) => {
+      expect(isAlwaysBlockedIp(ip)).toBe(true);
+    },
+  );
+
+  it.each(['10.0.0.1', '192.168.1.1', '127.0.0.1', '8.8.8.8'])(
+    'does not flag %s as always-blocked',
+    (ip) => {
+      expect(isAlwaysBlockedIp(ip)).toBe(false);
+    },
+  );
+});
+
+describe('assertSafeWebhookUrl with allowInternal', () => {
+  it('permits localhost and private hosts/IPs when opted in', () => {
+    expect(() =>
+      assertSafeWebhookUrl('http://localhost/x', true),
+    ).not.toThrow();
+    expect(() => assertSafeWebhookUrl('http://n8n:5678/x', true)).not.toThrow();
+    expect(() =>
+      assertSafeWebhookUrl('http://192.168.1.10:5678/x', true),
+    ).not.toThrow();
+    expect(() => assertSafeWebhookUrl('http://[::1]/x', true)).not.toThrow();
+  });
+
+  it('still blocks cloud-metadata / link-local even when opted in', () => {
+    expect(() =>
+      assertSafeWebhookUrl('http://169.254.169.254/latest', true),
+    ).toThrow(BadRequestException);
   });
 });

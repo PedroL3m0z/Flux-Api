@@ -30,6 +30,14 @@ export class WebhookEntity {
   active!: boolean;
 
   @ApiProperty({
+    example: false,
+    description:
+      'When true, delivery may target a private/loopback address (same Docker ' +
+      'network / LAN). Cloud-metadata / link-local addresses stay blocked.',
+  })
+  allowInternal!: boolean;
+
+  @ApiProperty({
     enum: EVENT_TYPES,
     isArray: true,
     description: 'Event types this webhook is subscribed to',
@@ -107,6 +115,21 @@ export class WebhookDeliveryEntity {
     description: 'Error message from the last failed attempt',
   })
   lastError?: string;
+
+  @ApiPropertyOptional({
+    example: '{"message":"workflow not active"}',
+    description:
+      'Truncated response body returned by the target — helps diagnose why a ' +
+      'delivery failed (e.g. a 404/500 body from the receiver).',
+  })
+  responseBody?: string;
+
+  @ApiProperty({
+    format: 'date-time',
+    example: '2026-06-19T12:00:10.000Z',
+    description: 'When the worker will next (re)attempt this delivery',
+  })
+  nextAttemptAt!: string;
 
   @ApiProperty({ format: 'date-time', example: '2026-06-19T12:00:00.000Z' })
   createdAt!: string;

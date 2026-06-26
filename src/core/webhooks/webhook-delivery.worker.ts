@@ -12,6 +12,18 @@ import { MAX_ATTEMPTS, RETRY_BACKOFF_SECONDS } from './webhook.types';
 const POLL_MS = 5000;
 const BATCH = 20;
 const TIMEOUT_MS = 10000;
+/** Cap on the stored response body so a chatty target can't bloat the row. */
+const RESPONSE_SNIPPET_MAX = 2000;
+
+/** Truncates a response body for storage, marking it when cut. */
+function snippet(text: string): string | null {
+  if (!text) {
+    return null;
+  }
+  return text.length > RESPONSE_SNIPPET_MAX
+    ? `${text.slice(0, RESPONSE_SNIPPET_MAX)}… (truncated)`
+    : text;
+}
 
 interface DueDelivery {
   id: string;
@@ -19,7 +31,12 @@ interface DueDelivery {
   instanceId: string | null;
   attempts: number;
   payload: unknown;
-  webhook: { url: string; secret: string; active: boolean };
+  webhook: {
+    url: string;
+    secret: string;
+    active: boolean;
+    allowInternal: boolean;
+  };
 }
 
 /**
@@ -61,7 +78,14 @@ export class WebhookDeliveryWorker
         orderBy: { nextAttemptAt: 'asc' },
         take: BATCH,
         include: {
-          webhook: { select: { url: true, secret: true, active: true } },
+          webhook: {
+            select: {
+              url: true,
+              secret: true,
+              active: true,
+              allowInternal: true,
+            },
+          },
         },
       })) as DueDelivery[];
       for (const delivery of due) {
@@ -86,10 +110,15 @@ export class WebhookDeliveryWorker
 
     const body = JSON.stringify(delivery.payload);
     let statusCode: number | undefined;
+    let responseBody: string | null = null;
     try {
       // SSRF guard: re-check the target (incl. DNS resolution) right before the
       // request, so a webhook can never be used to reach internal addresses.
-      await assertSafeResolvedUrl(delivery.webhook.url);
+      // Honors the webhook's opt-in `allowInternal` for same-network targets.
+      await assertSafeResolvedUrl(
+        delivery.webhook.url,
+        delivery.webhook.allowInternal,
+      );
       const res = await fetch(delivery.webhook.url, {
         method: 'POST',
         headers: {
@@ -106,8 +135,12 @@ export class WebhookDeliveryWorker
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
       statusCode = res.status;
+      responseBody = snippet(await res.text().catch(() => ''));
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+        // statusText is often empty on HTTP/2; keep it only when present.
+        throw new Error(
+          `HTTP ${res.status}${res.statusText ? ` ${res.statusText}` : ''}`,
+        );
       }
       await this.prisma.webhookDelivery.update({
         where: { id: delivery.id },
@@ -117,10 +150,11 @@ export class WebhookDeliveryWorker
           attempts: delivery.attempts + 1,
           deliveredAt: new Date(),
           lastError: null,
+          responseBody,
         },
       });
     } catch (error) {
-      await this.fail(delivery, error, statusCode);
+      await this.fail(delivery, error, statusCode, responseBody);
     }
   }
 
@@ -128,6 +162,7 @@ export class WebhookDeliveryWorker
     delivery: DueDelivery,
     error: unknown,
     statusCode?: number,
+    responseBody?: string | null,
   ): Promise<void> {
     const attempts = delivery.attempts + 1;
     const message = error instanceof Error ? error.message : 'unknown error';
@@ -140,6 +175,7 @@ export class WebhookDeliveryWorker
         attempts,
         statusCode: statusCode ?? null,
         lastError: message,
+        responseBody: responseBody ?? null,
         nextAttemptAt: dead ? undefined : new Date(Date.now() + backoff * 1000),
       },
     });

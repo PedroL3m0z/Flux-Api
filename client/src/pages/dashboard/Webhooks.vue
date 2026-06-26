@@ -3,8 +3,12 @@ import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { toast } from 'vue-sonner'
 import {
+  ChevronDown,
+  ChevronRight,
   Copy,
+  Globe,
   KeyRound,
+  Network,
   Pencil,
   Plus,
   Radio,
@@ -68,11 +72,12 @@ const form = ref({
   url: '',
   events: [] as string[],
   instanceIds: [] as string[],
+  allowInternal: false,
 })
 
 function openCreate() {
   editing.value = null
-  form.value = { name: '', url: '', events: [], instanceIds: [] }
+  form.value = { name: '', url: '', events: [], instanceIds: [], allowInternal: false }
   showForm.value = true
 }
 
@@ -83,6 +88,7 @@ function openEdit(w: Webhook) {
     url: w.url,
     events: [...w.events],
     instanceIds: [...w.instanceIds],
+    allowInternal: w.allowInternal,
   }
   showForm.value = true
 }
@@ -106,6 +112,7 @@ async function submitForm() {
         name: form.value.name.trim(),
         url: form.value.url.trim(),
         events: form.value.events,
+        allowInternal: form.value.allowInternal,
       })
       await reconcileInstances(editing.value, form.value.instanceIds)
       toast.success(t('webhooks.saved'))
@@ -115,6 +122,7 @@ async function submitForm() {
         url: form.value.url.trim(),
         events: form.value.events,
         instanceIds: form.value.instanceIds,
+        allowInternal: form.value.allowInternal,
       })
       toast.success(t('webhooks.created'))
       showSecret(created.secret)
@@ -189,13 +197,33 @@ const deliveries = ref<WebhookDelivery[]>([])
 const deliveriesLoading = ref(false)
 const deliveriesFor = ref<Webhook | null>(null)
 
+const expanded = ref<Set<string>>(new Set())
+
+function toggleExpanded(id: string) {
+  const next = new Set(expanded.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  expanded.value = next
+}
+
+/** A delivery carries detail worth surfacing when it failed or replied. */
+function hasDetail(d: WebhookDelivery) {
+  return Boolean(d.lastError || d.responseBody)
+}
+
 async function openDeliveries(w: Webhook) {
   deliveriesFor.value = w
   showDeliveries.value = true
   deliveriesLoading.value = true
   deliveries.value = []
+  expanded.value = new Set()
   try {
     deliveries.value = await api.webhookDeliveries(w.id)
+    // Auto-expand anything that isn't a clean success so the failure reason is
+    // visible without an extra click.
+    expanded.value = new Set(
+      deliveries.value.filter((d) => d.status !== 'success' && hasDetail(d)).map((d) => d.id),
+    )
   } finally {
     deliveriesLoading.value = false
   }
@@ -328,6 +356,37 @@ const deliveryColor: Record<WebhookDeliveryStatus, string> = {
                 <Input id="wurl" v-model="form.url" placeholder="https://example.com/hooks" />
               </div>
               <div class="grid gap-2">
+                <Label>{{ t('webhooks.target') }}</Label>
+                <p class="text-xs text-muted-foreground">{{ t('webhooks.targetHint') }}</p>
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    class="flex flex-col gap-1 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent/50"
+                    :class="!form.allowInternal ? 'border-primary bg-accent/40' : 'border-input'"
+                    @click="form.allowInternal = false"
+                  >
+                    <span class="flex items-center gap-2 font-medium">
+                      <Globe class="h-4 w-4" /> {{ t('webhooks.targetExternal') }}
+                    </span>
+                    <span class="text-xs text-muted-foreground">{{ t('webhooks.targetExternalDesc') }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="flex flex-col gap-1 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent/50"
+                    :class="form.allowInternal ? 'border-primary bg-accent/40' : 'border-input'"
+                    @click="form.allowInternal = true"
+                  >
+                    <span class="flex items-center gap-2 font-medium">
+                      <Network class="h-4 w-4" /> {{ t('webhooks.targetInternal') }}
+                    </span>
+                    <span class="text-xs text-muted-foreground">{{ t('webhooks.targetInternalDesc') }}</span>
+                  </button>
+                </div>
+                <p v-if="form.allowInternal" class="rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                  {{ t('webhooks.targetInternalWarn') }}
+                </p>
+              </div>
+              <div class="grid gap-2">
                 <Label>{{ t('webhooks.events') }}</Label>
                 <div class="grid grid-cols-2 gap-2">
                   <label
@@ -442,28 +501,68 @@ const deliveryColor: Record<WebhookDeliveryStatus, string> = {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="d in deliveries" :key="d.id" class="border-b last:border-0">
-                  <td class="px-4 py-2 font-mono text-xs">{{ d.event }}</td>
-                  <td class="px-4 py-2">
-                    <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="deliveryColor[d.status]">
-                      {{ d.status }}
-                    </span>
-                  </td>
-                  <td class="px-4 py-2 text-muted-foreground">{{ d.statusCode ?? '—' }}</td>
-                  <td class="px-4 py-2 text-muted-foreground">{{ d.attempts }}</td>
-                  <td class="px-4 py-2 text-muted-foreground">{{ fmtDate(d.createdAt) }}</td>
-                  <td class="px-4 py-2 text-right">
-                    <Button
-                      v-if="d.status !== 'success'"
-                      variant="ghost"
-                      size="icon"
-                      :title="t('webhooks.resend')"
-                      @click="resend(d)"
-                    >
-                      <RefreshCw class="h-4 w-4" />
-                    </Button>
-                  </td>
-                </tr>
+                <template v-for="d in deliveries" :key="d.id">
+                  <tr
+                    class="border-b last:border-0"
+                    :class="hasDetail(d) ? 'cursor-pointer hover:bg-muted/40' : ''"
+                    @click="hasDetail(d) && toggleExpanded(d.id)"
+                  >
+                    <td class="px-4 py-2">
+                      <span class="flex items-center gap-1 font-mono text-xs">
+                        <component
+                          :is="expanded.has(d.id) ? ChevronDown : ChevronRight"
+                          v-if="hasDetail(d)"
+                          class="h-3.5 w-3.5 text-muted-foreground"
+                        />
+                        <span v-else class="inline-block w-3.5" />
+                        {{ d.event }}
+                      </span>
+                    </td>
+                    <td class="px-4 py-2">
+                      <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="deliveryColor[d.status]">
+                        {{ d.status }}
+                      </span>
+                    </td>
+                    <td class="px-4 py-2 text-muted-foreground">{{ d.statusCode ?? '—' }}</td>
+                    <td class="px-4 py-2 text-muted-foreground">{{ d.attempts }}</td>
+                    <td class="px-4 py-2 text-muted-foreground">{{ fmtDate(d.createdAt) }}</td>
+                    <td class="px-4 py-2 text-right">
+                      <Button
+                        v-if="d.status !== 'success'"
+                        variant="ghost"
+                        size="icon"
+                        :title="t('webhooks.resend')"
+                        @click.stop="resend(d)"
+                      >
+                        <RefreshCw class="h-4 w-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                  <tr v-if="hasDetail(d) && expanded.has(d.id)" class="border-b last:border-0 bg-muted/30">
+                    <td colspan="6" class="px-4 py-3">
+                      <dl class="grid gap-2 text-xs sm:grid-cols-[120px_1fr]">
+                        <template v-if="d.lastError">
+                          <dt class="font-medium text-muted-foreground">{{ t('webhooks.detailError') }}</dt>
+                          <dd class="break-all text-destructive">{{ d.lastError }}</dd>
+                        </template>
+                        <template v-if="d.responseBody">
+                          <dt class="font-medium text-muted-foreground">{{ t('webhooks.detailResponse') }}</dt>
+                          <dd>
+                            <code class="block max-h-40 overflow-y-auto whitespace-pre-wrap break-all rounded bg-muted px-2 py-1 font-mono">{{ d.responseBody }}</code>
+                          </dd>
+                        </template>
+                        <template v-if="d.status === 'failed'">
+                          <dt class="font-medium text-muted-foreground">{{ t('webhooks.detailNextAttempt') }}</dt>
+                          <dd class="text-muted-foreground">{{ fmtDate(d.nextAttemptAt) }}</dd>
+                        </template>
+                        <template v-if="d.deliveredAt">
+                          <dt class="font-medium text-muted-foreground">{{ t('webhooks.detailDelivered') }}</dt>
+                          <dd class="text-muted-foreground">{{ fmtDate(d.deliveredAt) }}</dd>
+                        </template>
+                      </dl>
+                    </td>
+                  </tr>
+                </template>
               </tbody>
             </table>
           </CardContent>

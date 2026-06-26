@@ -19,6 +19,7 @@ interface WebhookRow {
   name: string;
   url: string;
   active: boolean;
+  allowInternal: boolean;
   events: string[];
   secret: string;
   createdAt: Date;
@@ -31,6 +32,7 @@ interface CreateInput {
   url: string;
   events: string[];
   instanceIds?: string[];
+  allowInternal?: boolean;
 }
 
 interface UpdateInput {
@@ -38,6 +40,7 @@ interface UpdateInput {
   url?: string;
   active?: boolean;
   events?: string[];
+  allowInternal?: boolean;
 }
 
 const withInstances = {
@@ -58,6 +61,7 @@ export class WebhooksService {
       name: row.name,
       url: row.url,
       active: row.active,
+      allowInternal: row.allowInternal,
       events: row.events,
       instanceIds: row.instances.map((i) => i.instanceId),
       createdAt: row.createdAt.toISOString(),
@@ -69,13 +73,15 @@ export class WebhooksService {
     ownerId: string,
     input: CreateInput,
   ): Promise<WebhookWithSecret> {
-    assertSafeWebhookUrl(input.url);
+    const allowInternal = input.allowInternal ?? false;
+    assertSafeWebhookUrl(input.url, allowInternal);
     const secret = this.newSecret();
     const row = await this.prisma.webhook.create({
       data: {
         ownerId,
         name: input.name,
         url: input.url,
+        allowInternal,
         events: input.events,
         secret,
         instances: input.instanceIds?.length
@@ -122,9 +128,12 @@ export class WebhooksService {
     id: string,
     patch: UpdateInput,
   ): Promise<WebhookView> {
-    await this.owned(ownerId, id);
-    if (patch.url !== undefined) {
-      assertSafeWebhookUrl(patch.url);
+    const current = await this.owned(ownerId, id);
+    // Re-validate the URL whenever the URL or the network scope changes, using
+    // the resulting effective scope.
+    if (patch.url !== undefined || patch.allowInternal !== undefined) {
+      const allowInternal = patch.allowInternal ?? current.allowInternal;
+      assertSafeWebhookUrl(patch.url ?? current.url, allowInternal);
     }
     const row = await this.prisma.webhook.update({
       where: { id },
@@ -132,6 +141,7 @@ export class WebhooksService {
         name: patch.name,
         url: patch.url,
         active: patch.active,
+        allowInternal: patch.allowInternal,
         events: patch.events,
       },
       include: withInstances,
@@ -202,6 +212,8 @@ export class WebhooksService {
     attempts: number;
     statusCode: number | null;
     lastError: string | null;
+    responseBody: string | null;
+    nextAttemptAt: Date;
     createdAt: Date;
     deliveredAt: Date | null;
   }): WebhookDeliveryView {
@@ -214,6 +226,8 @@ export class WebhooksService {
       attempts: row.attempts,
       statusCode: row.statusCode ?? undefined,
       lastError: row.lastError ?? undefined,
+      responseBody: row.responseBody ?? undefined,
+      nextAttemptAt: row.nextAttemptAt.toISOString(),
       createdAt: row.createdAt.toISOString(),
       deliveredAt: row.deliveredAt?.toISOString(),
     };

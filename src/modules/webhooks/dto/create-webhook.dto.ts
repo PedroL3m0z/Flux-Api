@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayNotEmpty,
   IsArray,
+  IsBoolean,
   IsIn,
   IsOptional,
   IsString,
@@ -21,6 +22,17 @@ export class CreateWebhookDto {
   @ApiProperty({ example: 'https://example.com/hooks/flux' })
   @IsUrl({ require_tld: false })
   url!: string;
+
+  @ApiPropertyOptional({
+    default: false,
+    description:
+      'Allow delivery to a private/loopback address (e.g. another service ' +
+      'on the same Docker network or LAN). Leave false for public targets on ' +
+      'the internet. Cloud-metadata / link-local addresses are always blocked.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  allowInternal?: boolean;
 
   @ApiProperty({ enum: EVENT_TYPES, isArray: true })
   @IsArray()

@@ -8,6 +8,8 @@ export interface WebhookView {
   name: string;
   url: string;
   active: boolean;
+  /** When true, delivery may target a private/loopback address (opt-in). */
+  allowInternal: boolean;
   events: string[];
   instanceIds: string[];
   createdAt: string;
@@ -28,6 +30,10 @@ export interface WebhookDeliveryView {
   attempts: number;
   statusCode?: number;
   lastError?: string;
+  /** Truncated response body from the target — diagnostic aid. */
+  responseBody?: string;
+  /** When the worker will (re)attempt this delivery. */
+  nextAttemptAt: string;
   createdAt: string;
   deliveredAt?: string;
 }
