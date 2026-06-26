@@ -62,7 +62,7 @@ export class WebhooksController {
   @ApiOperation({
     summary: 'Create a webhook',
     description:
-      'Creates a webhook owned by the current user and returns the signing secret **once**. Optionally links instances via `instanceIds`.',
+      'Creates a webhook owned by the current user and returns the signing secret **once**. Optionally links instances via `instanceIds`. Set `allowInternal: true` to deliver to a private/loopback target on the same Docker network or LAN (public internet targets keep the default `false`).',
   })
   @ApiCreatedResponse({ type: WebhookWithSecretEntity })
   create(@CurrentUser() user: SafeUser, @Body() dto: CreateWebhookDto) {

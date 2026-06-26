@@ -30,6 +30,15 @@ export class UpdateWebhookDto {
   @IsBoolean()
   active?: boolean;
 
+  @ApiPropertyOptional({
+    description:
+      'Allow delivery to a private/loopback address (same Docker network / ' +
+      'LAN). Cloud-metadata / link-local addresses are always blocked.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  allowInternal?: boolean;
+
   @ApiPropertyOptional({ enum: EVENT_TYPES, isArray: true })
   @IsOptional()
   @IsArray()

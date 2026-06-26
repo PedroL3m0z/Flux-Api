@@ -8,6 +8,7 @@ const row = {
   name: 'hook',
   url: 'https://x.test',
   active: true,
+  allowInternal: false,
   events: ['message.new'],
   secret: 'whsec_abc',
   createdAt: new Date('2026-01-01'),

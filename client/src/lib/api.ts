@@ -169,6 +169,7 @@ export interface Webhook {
   name: string
   url: string
   active: boolean
+  allowInternal: boolean
   events: string[]
   instanceIds: string[]
   createdAt: string
@@ -190,6 +191,8 @@ export interface WebhookDelivery {
   attempts: number
   statusCode?: number
   lastError?: string
+  responseBody?: string
+  nextAttemptAt: string
   createdAt: string
   deliveredAt?: string
 }
@@ -406,6 +409,7 @@ export const api = {
     url: string
     events: string[]
     instanceIds?: string[]
+    allowInternal?: boolean
   }) =>
     request<WebhookWithSecret>('/webhooks', {
       method: 'POST',
@@ -418,6 +422,7 @@ export const api = {
       url?: string
       active?: boolean
       events?: string[]
+      allowInternal?: boolean
     },
   ) =>
     request<Webhook>(`/webhooks/${id}`, {

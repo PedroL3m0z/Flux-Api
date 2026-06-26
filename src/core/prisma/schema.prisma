@@ -172,6 +172,10 @@ model Webhook {
   url       String
   secret    String
   active    Boolean  @default(true)
+  // When true the SSRF guard is relaxed for this webhook so it can target a
+  // private/loopback address (e.g. another service on the same Docker network).
+  // Cloud-metadata / link-local addresses stay blocked regardless.
+  allowInternal Boolean @default(false)
   events    String[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -205,6 +209,7 @@ model WebhookDelivery {
   attempts      Int           @default(0)
   statusCode    Int?
   lastError     String?
+  responseBody  String?
   payload       Json
   nextAttemptAt DateTime      @default(now())
   createdAt     DateTime      @default(now())
