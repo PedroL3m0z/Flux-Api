@@ -1556,41 +1556,41 @@
   resolved "https://registry.yarnpkg.com/@rolldown/pluginutils/-/pluginutils-1.0.1.tgz#e3fcee093fbb5ce765e1ad088ff4de2889f6f9be"
   integrity sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==
 
-"@scalar/client-side-rendering@0.2.5":
-  version "0.2.5"
-  resolved "https://registry.yarnpkg.com/@scalar/client-side-rendering/-/client-side-rendering-0.2.5.tgz#41c8839bd9d14c45d04f4caa8cfde727f6fe62b5"
-  integrity sha512-lhoy8a7pSRwcTTwR6S1vbvT1zPI/E6iZfqhMJpUts04OxauHCzLUeiP2NHN3FhaShaadmeoH/yzZEoRZIEmgQg==
+"@scalar/client-side-rendering@0.2.6":
+  version "0.2.6"
+  resolved "https://registry.yarnpkg.com/@scalar/client-side-rendering/-/client-side-rendering-0.2.6.tgz#7c130a0234180135a6d891092928b46c60e5f765"
+  integrity sha512-wvnyBtNdYob6CdmpFqLSQoGM5q5Ra8bXyq713T/u8Nq1NXbULk1znz/LyR78u8g++0G8bkxnVzhvOf7s9FwHFw==
   dependencies:
-    "@scalar/schemas" "0.6.0"
-    "@scalar/types" "0.15.0"
+    "@scalar/schemas" "0.7.0"
+    "@scalar/types" "0.16.0"
     "@scalar/validation" "0.6.0"
 
-"@scalar/helpers@0.8.2":
-  version "0.8.2"
-  resolved "https://registry.yarnpkg.com/@scalar/helpers/-/helpers-0.8.2.tgz#631c42fe7605768355e8ac851bb029ea70634797"
-  integrity sha512-qNbqUjSB3S4Gr4A0oANcm5G1Ip+EqBxICYKhe9YzmnaBpbmW6shxqpiivApTvvuDf+uIhR3uMwWyVQbYcGLsxA==
+"@scalar/helpers@0.9.0":
+  version "0.9.0"
+  resolved "https://registry.yarnpkg.com/@scalar/helpers/-/helpers-0.9.0.tgz#b3db11361209b4b927333487523e1e84c4ffd40f"
+  integrity sha512-M34CLRCttqC1bXthI/QSzQj0s5C6nrU2PFWf/vOT3RpycbiGDGQbqR+5RfFzpOIQvRqbHfNdcRbeiZBw+vCbkQ==
 
-"@scalar/nestjs-api-reference@^1.2.5":
-  version "1.2.5"
-  resolved "https://registry.yarnpkg.com/@scalar/nestjs-api-reference/-/nestjs-api-reference-1.2.5.tgz#aee7c608f44001c1ebbb8f22ae0b875ece3d713b"
-  integrity sha512-RJRbxyPcI/XHWOtEg6asehcoJOgZxobbxlaH85yTfLOnsbVt8sCb1lNp+JZgX4rtMpon2itRIw4h33U2qQNWpg==
+"@scalar/nestjs-api-reference@^1.2.6":
+  version "1.2.6"
+  resolved "https://registry.yarnpkg.com/@scalar/nestjs-api-reference/-/nestjs-api-reference-1.2.6.tgz#eaa5d717acbffc879e2b53815aa2f7634f623481"
+  integrity sha512-3GDbWXjUwZiPRRL5e0zIvZyfTapU1wLccv+oc9ai8UcgR9XTLTFa5yz5cgEhpIQrxt9sK65EouaPhsy2q0YJpQ==
   dependencies:
-    "@scalar/client-side-rendering" "0.2.5"
+    "@scalar/client-side-rendering" "0.2.6"
 
-"@scalar/schemas@0.6.0":
-  version "0.6.0"
-  resolved "https://registry.yarnpkg.com/@scalar/schemas/-/schemas-0.6.0.tgz#1e569bc8f1c5d6c5a060cdd783bc03ccb683f1b7"
-  integrity sha512-Oacaq7RTLhe3vWOoNc8tZufqthetu1VjWkdrGMMYoVSyMBQpvDI48gwBBQO6+iySeNpk9y8NHaGxqhHeoLbDiQ==
+"@scalar/schemas@0.7.0":
+  version "0.7.0"
+  resolved "https://registry.yarnpkg.com/@scalar/schemas/-/schemas-0.7.0.tgz#e01f1a0fd7deedcf913d6dc9c554459177441244"
+  integrity sha512-Roj0e7S29yTbGojwdx/b8C1H5arVN4h/VSPrtQ5vb9NT2ZAbrfPQVmpQYrF845rKOWX7kSzIvyBwrKNEMIAkxA==
   dependencies:
-    "@scalar/helpers" "0.8.2"
+    "@scalar/helpers" "0.9.0"
     "@scalar/validation" "0.6.0"
 
-"@scalar/types@0.15.0":
-  version "0.15.0"
-  resolved "https://registry.yarnpkg.com/@scalar/types/-/types-0.15.0.tgz#3ff53d3f8178832ee79abb7c722c396b2a331302"
-  integrity sha512-Rn9XAFrnQL4cAINCyNlPdvSbd3+Cvqgv2SBX1J8WgtZLxqC32+8Ptmns51Lvn6zKeiX+mFHk1UdvIWmqiG1xRg==
+"@scalar/types@0.16.0":
+  version "0.16.0"
+  resolved "https://registry.yarnpkg.com/@scalar/types/-/types-0.16.0.tgz#6dfae29d2f0fe6e6329510b0e7955dd95a8e209d"
+  integrity sha512-26OSrvZjKWZ7F236wWmJajBGDVFJuvXFJqKPFqbt/PxlgZKXQXfJsZorASRQmdNogT576nxYalQ7oaYWEnQwfw==
   dependencies:
-    "@scalar/helpers" "0.8.2"
+    "@scalar/helpers" "0.9.0"
     nanoid "^5.1.6"
     type-fest "^5.3.1"
     zod "^4.3.5"
