@@ -176,7 +176,18 @@ A **webhook** subscribes to a subset of event types and is linked to one or more
 - **Durable** — each attempt is a `WebhookDelivery` row in Postgres (survives restarts).
 - **Retry with backoff** — `10s → 1m → 5m → 30m → 2h`; after **6 attempts** the delivery becomes `dead`.
 - **Signed** — body signed with HMAC-SHA256; verify before trusting.
-- **Auditable** — status, HTTP code, attempt count and last error are queryable (`GET /webhooks/:id/deliveries`), with manual resend.
+- **Auditable** — status, HTTP code, attempt count, last error **and the target's response body** are queryable (`GET /webhooks/:id/deliveries`), with manual resend.
+
+### Network access (external vs internal targets)
+
+By default a webhook may only target a **public** address — an SSRF guard blocks private, loopback and reserved ranges (validated at create/update **and** re-checked at delivery to defeat DNS rebinding). Set **`allowInternal: true`** to deliver to a **private/loopback** target instead, e.g. another service on the same Docker network or LAN:
+
+```jsonc
+// e.g. an n8n instance reachable as http://n8n:5678 on the same compose network
+{ "name": "n8n", "url": "http://n8n:5678/webhook/flux", "events": ["message.new"], "allowInternal": true }
+```
+
+In the dashboard this is the **External (internet)** vs **Internal (local/Docker network)** choice on the webhook form. Cloud-metadata / link-local addresses (`169.254.0.0/16`, `fe80::/10`) stay blocked **regardless** of this flag, since those are never a legitimate destination.
 
 ### POST body
 
@@ -231,6 +242,7 @@ Additional protections:
 - **Rate limiting**: global per-IP throttling (`@nestjs/throttler`; `@SkipThrottle()` where appropriate).
 - **Helmet**: strict CSP on the API; relaxed CSP only on `/docs` (Scalar) and `/dashboard` (SPA).
 - **CORS**: whitelisted origins via `CORS_ORIGIN`.
+- **Webhook SSRF guard**: outbound webhook targets are restricted to public addresses by default (private/loopback/reserved ranges blocked at create and delivery time); private targets require explicit `allowInternal`, and cloud-metadata / link-local addresses stay blocked unconditionally.
 - **Safe BigInt**: int64 ids serialized as strings (global shim in `main.ts`).
 
 ---
@@ -315,9 +327,9 @@ interface LoginResponse   { accessToken }                          // the JWT al
 // InstanceView gains `myRole?: 'admin'|'operator'|'viewer'` (the requester's global role)
 
 // Webhooks
-interface WebhookView           { id; name; url; active; events[]; instanceIds[]; createdAt; updatedAt }
+interface WebhookView           { id; name; url; active; allowInternal; events[]; instanceIds[]; createdAt; updatedAt }
 interface WebhookWithSecret     extends WebhookView { secret }    // only on create / regenerate-secret
-interface WebhookDeliveryView   { id; webhookId; instanceId?; event; status; attempts; statusCode?; lastError?; createdAt; deliveredAt? }
+interface WebhookDeliveryView   { id; webhookId; instanceId?; event; status; attempts; statusCode?; lastError?; responseBody?; nextAttemptAt; createdAt; deliveredAt? }
 ```
 
 ---
@@ -382,7 +394,7 @@ interface WebhookDeliveryView   { id; webhookId; instanceId?; event; status; att
 | `/webhooks`                                   | POST   | Create a webhook (returns the `secret` once)        |
 | `/webhooks`                                   | GET    | List your webhooks                                  |
 | `/webhooks/:id`                               | GET    | Details of one webhook                              |
-| `/webhooks/:id`                               | PATCH  | Update (name, url, active, events)                  |
+| `/webhooks/:id`                               | PATCH  | Update (name, url, active, events, allowInternal)   |
 | `/webhooks/:id`                               | DELETE | Remove the webhook and its deliveries              |
 | `/webhooks/:id/regenerate-secret`             | POST   | Rotate the signing secret (returned once)          |
 | `/webhooks/:id/instances/:instanceId`         | POST   | Link an instance (M2M; requires the `webhook:manage` permission) |
@@ -392,8 +404,8 @@ interface WebhookDeliveryView   { id; webhookId; instanceId?; event; status; att
 
 **Useful bodies**
 
-- **POST `/webhooks`** — `{ name, url, events[], instanceIds? }`
-- **PATCH `/webhooks/:id`** — `{ name?, url?, active?, events? }`
+- **POST `/webhooks`** — `{ name, url, events[], instanceIds?, allowInternal? }`
+- **PATCH `/webhooks/:id`** — `{ name?, url?, active?, events?, allowInternal? }`
 
 ### Users & system
 
@@ -417,7 +429,7 @@ Vue 3 + TypeScript + Tailwind, served at `/dashboard`.
 - **Overview** — uptime, instance count and health, total webhooks.
 - **Instances** — create, connect via QR or phone, start/stop, details, open chats.
 - **Chats** — list dialogs, read paginated history, send text and media, realtime.
-- **Webhooks** — create/edit (events + instances), enable/disable, view deliveries (status/code/attempts) and resend, rotate the secret.
+- **Webhooks** — create/edit (events + instances, external/internal target), enable/disable, view deliveries (status/code/attempts, with error + response detail) and resend, rotate the secret.
 - **Users** — list accounts and, as an admin, create, edit (email/username/password/role) and delete users.
 - **Settings** — set `api_id`/`api_hash`, test `x-api-key`.
 - **Help** — step-by-step guide. **i18n**: English + Portuguese (BR).
