@@ -1556,13 +1556,13 @@
   resolved "https://registry.yarnpkg.com/@rolldown/pluginutils/-/pluginutils-1.0.1.tgz#e3fcee093fbb5ce765e1ad088ff4de2889f6f9be"
   integrity sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==
 
-"@scalar/client-side-rendering@0.2.6":
-  version "0.2.6"
-  resolved "https://registry.yarnpkg.com/@scalar/client-side-rendering/-/client-side-rendering-0.2.6.tgz#7c130a0234180135a6d891092928b46c60e5f765"
-  integrity sha512-wvnyBtNdYob6CdmpFqLSQoGM5q5Ra8bXyq713T/u8Nq1NXbULk1znz/LyR78u8g++0G8bkxnVzhvOf7s9FwHFw==
+"@scalar/client-side-rendering@0.3.1":
+  version "0.3.1"
+  resolved "https://registry.yarnpkg.com/@scalar/client-side-rendering/-/client-side-rendering-0.3.1.tgz#d2ca28f29798f58cacd0d976ed0a04dd5cebb70b"
+  integrity sha512-V9pBpA5j59wCDfYeKQ/mSGc1M5YnOAc/aU0D3KVkvsZpSvlGuig5RW7Q8EeohtES4acZKq0KhVB+Rxx/GT58LA==
   dependencies:
-    "@scalar/schemas" "0.7.0"
-    "@scalar/types" "0.16.0"
+    "@scalar/schemas" "0.7.1"
+    "@scalar/types" "0.16.1"
     "@scalar/validation" "0.6.0"
 
 "@scalar/helpers@0.9.0":
@@ -1570,25 +1570,25 @@
   resolved "https://registry.yarnpkg.com/@scalar/helpers/-/helpers-0.9.0.tgz#b3db11361209b4b927333487523e1e84c4ffd40f"
   integrity sha512-M34CLRCttqC1bXthI/QSzQj0s5C6nrU2PFWf/vOT3RpycbiGDGQbqR+5RfFzpOIQvRqbHfNdcRbeiZBw+vCbkQ==
 
-"@scalar/nestjs-api-reference@^1.2.6":
-  version "1.2.6"
-  resolved "https://registry.yarnpkg.com/@scalar/nestjs-api-reference/-/nestjs-api-reference-1.2.6.tgz#eaa5d717acbffc879e2b53815aa2f7634f623481"
-  integrity sha512-3GDbWXjUwZiPRRL5e0zIvZyfTapU1wLccv+oc9ai8UcgR9XTLTFa5yz5cgEhpIQrxt9sK65EouaPhsy2q0YJpQ==
+"@scalar/nestjs-api-reference@^1.2.8":
+  version "1.2.8"
+  resolved "https://registry.yarnpkg.com/@scalar/nestjs-api-reference/-/nestjs-api-reference-1.2.8.tgz#de10f006119bcfdf19b792375a7537d3f8e50e5e"
+  integrity sha512-thyo4NUtk3MK0moVsntJsVI80Ej6GGPvLiCW52ri4T3ji8k/9eXJRjtoFL4u/pfbLAp4QXLiZkAVuAgsevgqiw==
   dependencies:
-    "@scalar/client-side-rendering" "0.2.6"
+    "@scalar/client-side-rendering" "0.3.1"
 
-"@scalar/schemas@0.7.0":
-  version "0.7.0"
-  resolved "https://registry.yarnpkg.com/@scalar/schemas/-/schemas-0.7.0.tgz#e01f1a0fd7deedcf913d6dc9c554459177441244"
-  integrity sha512-Roj0e7S29yTbGojwdx/b8C1H5arVN4h/VSPrtQ5vb9NT2ZAbrfPQVmpQYrF845rKOWX7kSzIvyBwrKNEMIAkxA==
+"@scalar/schemas@0.7.1":
+  version "0.7.1"
+  resolved "https://registry.yarnpkg.com/@scalar/schemas/-/schemas-0.7.1.tgz#db6dc5e6dac7d69198070abcbece7a5abff71a4b"
+  integrity sha512-80bxEp4ZOWxOm8kqhPi3kdJ2gipz2lZBSEHStAh3Z6NZPkFAOlZZYnDFwodhY0LwTihgvv4FVNmi64gziM0F1g==
   dependencies:
     "@scalar/helpers" "0.9.0"
     "@scalar/validation" "0.6.0"
 
-"@scalar/types@0.16.0":
-  version "0.16.0"
-  resolved "https://registry.yarnpkg.com/@scalar/types/-/types-0.16.0.tgz#6dfae29d2f0fe6e6329510b0e7955dd95a8e209d"
-  integrity sha512-26OSrvZjKWZ7F236wWmJajBGDVFJuvXFJqKPFqbt/PxlgZKXQXfJsZorASRQmdNogT576nxYalQ7oaYWEnQwfw==
+"@scalar/types@0.16.1":
+  version "0.16.1"
+  resolved "https://registry.yarnpkg.com/@scalar/types/-/types-0.16.1.tgz#d9204927fc0368472a31bab43b9abf9268183090"
+  integrity sha512-zzApf0dtEqztdY//3gmRJTgySGMpKnAVqcZltAzt95yuQPXbkSqxXDTitBLd1abeSeik+W6GFTIjffL8K+1wqQ==
   dependencies:
     "@scalar/helpers" "0.9.0"
     nanoid "^5.1.6"
