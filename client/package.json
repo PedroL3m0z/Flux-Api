@@ -15,24 +15,24 @@
     "lucide-vue-next": "^1.0.0",
     "pinia": "^3.0.4",
     "qrcode": "^1.5.4",
-    "reka-ui": "^2.10.0",
+    "reka-ui": "^2.10.1",
     "tailwind-merge": "^3.6.0",
     "vee-validate": "^4.15.1",
-    "vue": "^3.5.34",
+    "vue": "^3.5.39",
     "vue-i18n": "^11.4.6",
     "vue-router": "^5.1.0",
     "vue-sonner": "^2.0.9",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.1",
-    "@types/node": "^26.0.0",
+    "@tailwindcss/vite": "^4.3.2",
+    "@types/node": "^26.1.0",
     "@types/qrcode": "^1.5.6",
     "@vitejs/plugin-vue": "^6.0.6",
     "@vue/tsconfig": "^0.9.1",
     "tailwindcss": "^4.3.1",
     "typescript": "~6.0.2",
-    "vite": "^8.0.12",
-    "vue-tsc": "^3.2.8"
+    "vite": "^8.1.2",
+    "vue-tsc": "^3.3.6"
   }
 }
