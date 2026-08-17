@@ -1556,49 +1556,49 @@
   resolved "https://registry.yarnpkg.com/@rolldown/pluginutils/-/pluginutils-1.0.1.tgz#e3fcee093fbb5ce765e1ad088ff4de2889f6f9be"
   integrity sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==
 
-"@scalar/client-side-rendering@0.3.1":
-  version "0.3.1"
-  resolved "https://registry.yarnpkg.com/@scalar/client-side-rendering/-/client-side-rendering-0.3.1.tgz#d2ca28f29798f58cacd0d976ed0a04dd5cebb70b"
-  integrity sha512-V9pBpA5j59wCDfYeKQ/mSGc1M5YnOAc/aU0D3KVkvsZpSvlGuig5RW7Q8EeohtES4acZKq0KhVB+Rxx/GT58LA==
+"@scalar/client-side-rendering@0.3.7":
+  version "0.3.7"
+  resolved "https://registry.yarnpkg.com/@scalar/client-side-rendering/-/client-side-rendering-0.3.7.tgz#867e19e916d7d5b0bed88c705f5e6d666700871d"
+  integrity sha512-B0ePjn0/hv1JS/dM+C2IVmU7hily4a3m8Tcd8DbfQtMMRtGH0AQB4RBZS8rTNORqVZQyXVSCv8HCwkg3f2f3eQ==
   dependencies:
-    "@scalar/schemas" "0.7.1"
-    "@scalar/types" "0.16.1"
-    "@scalar/validation" "0.6.0"
+    "@scalar/schemas" "0.8.1"
+    "@scalar/types" "0.18.0"
+    "@scalar/validation" "0.6.2"
 
-"@scalar/helpers@0.9.0":
-  version "0.9.0"
-  resolved "https://registry.yarnpkg.com/@scalar/helpers/-/helpers-0.9.0.tgz#b3db11361209b4b927333487523e1e84c4ffd40f"
-  integrity sha512-M34CLRCttqC1bXthI/QSzQj0s5C6nrU2PFWf/vOT3RpycbiGDGQbqR+5RfFzpOIQvRqbHfNdcRbeiZBw+vCbkQ==
+"@scalar/helpers@0.10.0":
+  version "0.10.0"
+  resolved "https://registry.yarnpkg.com/@scalar/helpers/-/helpers-0.10.0.tgz#e60381ffbec39b0cb227d0b9900cb0818ef4b5dc"
+  integrity sha512-IAfnpIZnXY6ni+zyFMwWHBa5b/7yr4mCSvoTGR84oS9q4Quy2wjgafnr7CyfL65ney3iilBZHigZYLYqdqCu3Q==
 
-"@scalar/nestjs-api-reference@^1.2.8":
-  version "1.2.8"
-  resolved "https://registry.yarnpkg.com/@scalar/nestjs-api-reference/-/nestjs-api-reference-1.2.8.tgz#de10f006119bcfdf19b792375a7537d3f8e50e5e"
-  integrity sha512-thyo4NUtk3MK0moVsntJsVI80Ej6GGPvLiCW52ri4T3ji8k/9eXJRjtoFL4u/pfbLAp4QXLiZkAVuAgsevgqiw==
+"@scalar/nestjs-api-reference@^1.2.14":
+  version "1.2.14"
+  resolved "https://registry.yarnpkg.com/@scalar/nestjs-api-reference/-/nestjs-api-reference-1.2.14.tgz#3d8aed65ca4f883dabd82d2d95cc6b1a6a3c2337"
+  integrity sha512-b6PLKvz0P9HxXuGNfttKc1SJNO1SaLYe6CTJ8sEMqtg3dtxixCw1CrGlWadUNcX3Ce6iuinARqgD8nJyV8z0hQ==
   dependencies:
-    "@scalar/client-side-rendering" "0.3.1"
+    "@scalar/client-side-rendering" "0.3.7"
 
-"@scalar/schemas@0.7.1":
-  version "0.7.1"
-  resolved "https://registry.yarnpkg.com/@scalar/schemas/-/schemas-0.7.1.tgz#db6dc5e6dac7d69198070abcbece7a5abff71a4b"
-  integrity sha512-80bxEp4ZOWxOm8kqhPi3kdJ2gipz2lZBSEHStAh3Z6NZPkFAOlZZYnDFwodhY0LwTihgvv4FVNmi64gziM0F1g==
+"@scalar/schemas@0.8.1":
+  version "0.8.1"
+  resolved "https://registry.yarnpkg.com/@scalar/schemas/-/schemas-0.8.1.tgz#95ba12f7a8161ea01782ef5e2deb25c4f33895e9"
+  integrity sha512-SGB/Verzjf6wpULdOIQfCCPvG46GTVYawirjQ8AVSFSIMduS6zz1MpL+I90Z8/zjeSbjtwRoLtjjWb2yByEjfQ==
   dependencies:
-    "@scalar/helpers" "0.9.0"
-    "@scalar/validation" "0.6.0"
+    "@scalar/helpers" "0.10.0"
+    "@scalar/validation" "0.6.2"
 
-"@scalar/types@0.16.1":
-  version "0.16.1"
-  resolved "https://registry.yarnpkg.com/@scalar/types/-/types-0.16.1.tgz#d9204927fc0368472a31bab43b9abf9268183090"
-  integrity sha512-zzApf0dtEqztdY//3gmRJTgySGMpKnAVqcZltAzt95yuQPXbkSqxXDTitBLd1abeSeik+W6GFTIjffL8K+1wqQ==
+"@scalar/types@0.18.0":
+  version "0.18.0"
+  resolved "https://registry.yarnpkg.com/@scalar/types/-/types-0.18.0.tgz#a94d2467aad8ce3dcf40facb38e985994ca5f5ad"
+  integrity sha512-rAlZEzcNSyMohzJGrkjZQkf7RcvXYl2sVIkeTAt90Ag9M/W2D+yITDbVTAOT+GXWrvG+/XvEqEBnspjt2TfyQQ==
   dependencies:
-    "@scalar/helpers" "0.9.0"
+    "@scalar/helpers" "0.10.0"
     nanoid "^5.1.6"
     type-fest "^5.3.1"
     zod "^4.3.5"
 
-"@scalar/validation@0.6.0":
-  version "0.6.0"
-  resolved "https://registry.yarnpkg.com/@scalar/validation/-/validation-0.6.0.tgz#70e8b8a7eec6b86fd76f569b614e22bb41209f06"
-  integrity sha512-tpmmG+/xRE2Kn9RpflU3AIyZv08v10+E1ZrJCx7z6+/91zHVxy0M73kC1LT4/8PbYNt85ywyC8+n+D99JdMcGA==
+"@scalar/validation@0.6.2":
+  version "0.6.2"
+  resolved "https://registry.yarnpkg.com/@scalar/validation/-/validation-0.6.2.tgz#79264de2375b5e21bcabb75e116ab3580fe3666c"
+  integrity sha512-Sc1TkcwGV6aVCO51AyKeaGiP8gpwAHxEtO5d3tZzPV+KsnlC/YokQxFxwBrbIXw73k9hmcExnJyGu3k5i6n6VA==
 
 "@scarf/scarf@=1.4.0":
   version "1.4.0"
@@ -7219,7 +7219,7 @@ vue-i18n@^11.4.8:
     "@intlify/shared" "11.4.8"
     "@vue/devtools-api" "^6.5.0"
 
-vue-router@^5.2.0:
+vue-router@^5.1.0:
   version "5.2.0"
   resolved "https://registry.yarnpkg.com/vue-router/-/vue-router-5.2.0.tgz#34f03b1012729c33bb23184d96ad8e1b1b5c4546"
   integrity sha512-QAC5i0LEb1GLG0LXDQmHu8L7FX12j0KwU/JTKmLQUJMrn04gQdKP6Du+p0QwpHb3iy71vBlqnHQ8WAfOSAWhqw==
