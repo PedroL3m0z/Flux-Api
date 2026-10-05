@@ -6205,10 +6205,10 @@ reflect-metadata@^0.2.2:
   resolved "https://registry.yarnpkg.com/reflect-metadata/-/reflect-metadata-0.2.2.tgz#400c845b6cba87a21f2c65c4aeb158f4fa4d9c5b"
   integrity sha512-urBwgfrvVP/eAyXx4hluJivBKzuEbSQs9rKWCrCkbSxNv8mxPcUZKeuoF3Uy4mJl3Lwprp6yy5/39VWigZ4K6Q==
 
-reka-ui@^2.10.4:
-  version "2.10.4"
-  resolved "https://registry.yarnpkg.com/reka-ui/-/reka-ui-2.10.4.tgz#2a0ee3ecec1464c74645c53ec4ab33b1cc638e2b"
-  integrity sha512-kbS5GAbkHkYj0EVKAg5ZPEPndhBjeUFSa1Aq5m5ftQwyHnB1v5tw8X6fcwfKH/ry3StPXblMWM1DW82MVS71cw==
+reka-ui@^2.10.5:
+  version "2.10.5"
+  resolved "https://registry.yarnpkg.com/reka-ui/-/reka-ui-2.10.5.tgz#f97fcb546e58d42da2f7888ba1b7e17b506d29d8"
+  integrity sha512-/8o0y9BThE0hcHKFg+3770tWcJh3qKdOEFxLOPb9HIajXeFoH/J530cZH62jUJunbqwBgpSBL9v7nB8LJ5pDXA==
   dependencies:
     "@floating-ui/dom" "^1.6.13"
     "@floating-ui/vue" "^1.1.6"
