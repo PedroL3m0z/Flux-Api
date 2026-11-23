@@ -766,35 +766,35 @@
   dependencies:
     "@swc/helpers" "^0.5.0"
 
-"@intlify/core-base@11.4.19":
-  version "11.4.19"
-  resolved "https://registry.yarnpkg.com/@intlify/core-base/-/core-base-11.4.19.tgz#eaceb2e75cd20e6a787330f75a8c82a6286ada6e"
-  integrity sha512-evgu8NEnGifZbIUV9Rr226ryCIa5CGxVDHAdU9oh0LIgdpznXYxZwONsnBHucq6nSrOaWXUjnOtKXA6VaiVJ0A==
+"@intlify/core-base@11.4.23":
+  version "11.4.23"
+  resolved "https://registry.yarnpkg.com/@intlify/core-base/-/core-base-11.4.23.tgz#3a5d5135027df8fa59169e7346455200c2b44fdb"
+  integrity sha512-V8a3BQ7iTVPDetJ/LJfGn3lDx4Ir35OjjO4BLgVrFuL+0egWzwUyfdLIPAEYWlMGdo14eC5p6uk3tSlTYY0YmQ==
   dependencies:
-    "@intlify/devtools-types" "11.4.19"
-    "@intlify/message-compiler" "11.4.19"
-    "@intlify/shared" "11.4.19"
+    "@intlify/devtools-types" "11.4.23"
+    "@intlify/message-compiler" "11.4.23"
+    "@intlify/shared" "11.4.23"
 
-"@intlify/devtools-types@11.4.19":
-  version "11.4.19"
-  resolved "https://registry.yarnpkg.com/@intlify/devtools-types/-/devtools-types-11.4.19.tgz#44f71f169ccbc807cf869088e441e59d93ed51fa"
-  integrity sha512-rt8akChgJ+3MCaDKQnWt2sCfLTneEFUd9O/7Fxxye2It/aqHwKUUT3XREBCpTWLt4qrJS3INqIRfoE08mOEEeg==
+"@intlify/devtools-types@11.4.23":
+  version "11.4.23"
+  resolved "https://registry.yarnpkg.com/@intlify/devtools-types/-/devtools-types-11.4.23.tgz#4cf146663ba015d0a71da2968d761df4fd2d39f5"
+  integrity sha512-zuWkolaeK8ej5z7L9Ss7FLIBHgE8ZF+XcwV1o/vQ7IKagiDg/IosA7fOa2HUFVMW5yT2ugph9rshevHGzcowBQ==
   dependencies:
-    "@intlify/core-base" "11.4.19"
-    "@intlify/shared" "11.4.19"
+    "@intlify/core-base" "11.4.23"
+    "@intlify/shared" "11.4.23"
 
-"@intlify/message-compiler@11.4.19":
-  version "11.4.19"
-  resolved "https://registry.yarnpkg.com/@intlify/message-compiler/-/message-compiler-11.4.19.tgz#3d41b8eb4f98d65f13c0fc82bd2f5a8ed6e585a5"
-  integrity sha512-y6VkdYYSSNpMRf/dWoJQWhEPE349g2KQ02ImDJaplsXnrf+dVGjl6Kqqhv4TYtr7ZCfaLCwdmutcz6ZTMaDBXA==
+"@intlify/message-compiler@11.4.23":
+  version "11.4.23"
+  resolved "https://registry.yarnpkg.com/@intlify/message-compiler/-/message-compiler-11.4.23.tgz#7e041e6ff283da4369408ac5871ec1dcba22cc15"
+  integrity sha512-HgmnQV/lBBX8KgxoNwngzzq8DLw/jECJgz9eBfQGdkEYte7Bw1RSqhIskcWp0DEWrSg2wijUi6dJjpq1WUD+zg==
   dependencies:
-    "@intlify/shared" "11.4.19"
+    "@intlify/shared" "11.4.23"
     source-map-js "^1.0.2"
 
-"@intlify/shared@11.4.19":
-  version "11.4.19"
-  resolved "https://registry.yarnpkg.com/@intlify/shared/-/shared-11.4.19.tgz#369dbdd79f60cbd8c58a0924b92d9c6b95197d60"
-  integrity sha512-JCor7CqIfZJHyAM+OzUUNRvc+D6v5RJBXHu/FRNiwFOopqftBsvRtTM5tOiptPIT3S6Ryt9DOupdM+tNGwoUcw==
+"@intlify/shared@11.4.23":
+  version "11.4.23"
+  resolved "https://registry.yarnpkg.com/@intlify/shared/-/shared-11.4.23.tgz#85b87dfb11b3ab43b78d71b270c89767a73f075c"
+  integrity sha512-1iqGalDCOlHZ8y7LOC3yisSm52K5AmkTmaNO23XGFYWU6Z1oIX8VeAGRq9rn2KrDFb8nMtQaxNyMa1n8EeDm5g==
 
 "@ioredis/commands@1.10.0":
   version "1.10.0"
@@ -7606,14 +7606,14 @@ vscode-uri@^3.0.8:
   resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.1.0.tgz#dd09ec5a66a38b5c3fffc774015713496d14e09c"
   integrity sha512-/BpdSx+yCQGnCvecbyXdxHDkuk55/G3xwnC0GqY4gmQ3j+A+g8kzzgB4Nk/SINjqn6+waqw3EgbVF2QKExkRxQ==
 
-vue-i18n@^11.4.19:
-  version "11.4.19"
-  resolved "https://registry.yarnpkg.com/vue-i18n/-/vue-i18n-11.4.19.tgz#5ad6a67c0e044bae3f18f491b111fdb6b0ed61e4"
-  integrity sha512-vmRVz9NNWj3wSu1SpdGgsf5+N2LzYPSSkxcls+ceIidOXYXzERTHUaPSQCrGYoHoRZkTRbEwnauj5SCyHdF5pg==
+vue-i18n@^11.4.23:
+  version "11.4.23"
+  resolved "https://registry.yarnpkg.com/vue-i18n/-/vue-i18n-11.4.23.tgz#e5a596dd91e8ba893f4d00b943f6c47d2030c1da"
+  integrity sha512-O+H2L/LF9xzklv2PZEqYAaG0rrbQokm6aX6/gPDxdtokBSDhKm+lvEPVbC3hXdvKpN5ICSBWigIkJ06AzCs3Lw==
   dependencies:
-    "@intlify/core-base" "11.4.19"
-    "@intlify/devtools-types" "11.4.19"
-    "@intlify/shared" "11.4.19"
+    "@intlify/core-base" "11.4.23"
+    "@intlify/devtools-types" "11.4.23"
+    "@intlify/shared" "11.4.23"
     "@vue/devtools-api" "^6.5.0"
 
 vue-router@^5.5.1:
